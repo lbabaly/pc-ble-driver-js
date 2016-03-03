@@ -13,6 +13,8 @@
 #include "adapter.h"
 #include "common.h"
 
+#include <algorithm>
+
 Nan::Persistent<v8::Function> Adapter::constructor;
 
 std::vector<Adapter *> adapters;
@@ -174,31 +176,39 @@ void Adapter::initStatusHandling(Nan::Callback *callback)
     }
 }
 
-void Adapter::removeCallbacks()
+void Adapter::cleanUpV8Resources()
 {
     closing = true;
 
-    if (eventCallback != nullptr)
+    auto intervalTimerhandle = reinterpret_cast<uv_handle_t*>(&eventIntervalTimer);
+
+    // Deallocate resources related to the event handling interval timer
+    if (uv_is_active(intervalTimerhandle) != 0)
     {
-        delete eventCallback;
-        eventCallback = nullptr;
+        if (uv_timer_stop(&eventIntervalTimer) != 0)
+        {
+            std::terminate();
+        }
     }
 
-    if (logCallback != nullptr)
+    auto logHandle = reinterpret_cast<uv_handle_t *>(&asyncLog);
+    auto eventHandle = reinterpret_cast<uv_handle_t *>(&asyncEvent);
+    auto statusHandle = reinterpret_cast<uv_handle_t *>(&asyncStatus);
+
+    if (uv_is_active(logHandle))
     {
-        delete logCallback;
-        logCallback = nullptr;
+        uv_close(reinterpret_cast<uv_handle_t *>(&asyncLog), nullptr);
     }
 
-    if (statusCallback != nullptr)
+    if (uv_is_active(eventHandle)) 
     {
-        delete statusCallback;
-        statusCallback = nullptr;
+        uv_close(reinterpret_cast<uv_handle_t *>(&asyncEvent), nullptr);
     }
-
-    uv_close(reinterpret_cast<uv_handle_t *>(&asyncLog), nullptr);
-    uv_close(reinterpret_cast<uv_handle_t *>(&asyncEvent), nullptr);
-    uv_close(reinterpret_cast<uv_handle_t *>(&asyncStatus), nullptr);
+    
+    if (uv_is_active(statusHandle))
+    {
+        uv_close(reinterpret_cast<uv_handle_t *>(&asyncStatus), nullptr);
+    }
 }
 
 void Adapter::initGeneric(v8::Local<v8::FunctionTemplate> tpl)
@@ -287,6 +297,11 @@ Adapter::Adapter()
 
 Adapter::~Adapter()
 {
+    // Remove this adapter from the global container of adapters
+    adapters.erase(std::find(adapters.begin(), adapters.end(), this));
+
+    // Remove callbacks and cleanup uv_handle_t instances
+    cleanUpV8Resources();
 }
 
 NAN_METHOD(Adapter::New)
