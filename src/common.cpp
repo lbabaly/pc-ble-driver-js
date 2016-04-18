@@ -28,10 +28,11 @@ catch(char const *error) \
     std::cout << "Exception: " << name << ":" << error << std::endl; \
     std::stringstream ex; \
     ex << "Failed to get property " << name << ": " << error; \
-    throw ex.str().c_str(); \
+    throw ex.str(); \
 }
 
 static name_map_t error_message_name_map = {
+    // Generic errors
     NAME_MAP_ENTRY(NRF_SUCCESS),
     NAME_MAP_ENTRY(NRF_ERROR_SVC_HANDLER_MISSING),
     NAME_MAP_ENTRY(NRF_ERROR_SOFTDEVICE_NOT_ENABLED),
@@ -49,7 +50,24 @@ static name_map_t error_message_name_map = {
     NAME_MAP_ENTRY(NRF_ERROR_NULL),
     NAME_MAP_ENTRY(NRF_ERROR_FORBIDDEN),
     NAME_MAP_ENTRY(NRF_ERROR_INVALID_ADDR),
-    NAME_MAP_ENTRY(NRF_ERROR_BUSY)
+    NAME_MAP_ENTRY(NRF_ERROR_BUSY),
+    NAME_MAP_ENTRY(NRF_ERROR_CONN_COUNT),
+    NAME_MAP_ENTRY(NRF_ERROR_RESOURCES),
+
+    // GAP related errors
+    NAME_MAP_ENTRY(BLE_ERROR_GAP_UUID_LIST_MISMATCH),
+    NAME_MAP_ENTRY(BLE_ERROR_GAP_DISCOVERABLE_WITH_WHITELIST),
+    NAME_MAP_ENTRY(BLE_ERROR_GAP_INVALID_BLE_ADDR),
+    NAME_MAP_ENTRY(BLE_ERROR_GAP_WHITELIST_IN_USE),
+
+    // GATT related errors
+
+    // GATTC related errors
+    NAME_MAP_ENTRY(BLE_ERROR_GATTC_PROC_NOT_PERMITTED),
+
+    // GATTS related errors
+    NAME_MAP_ENTRY(BLE_ERROR_GATTS_INVALID_ATTR_TYPE),
+    NAME_MAP_ENTRY(BLE_ERROR_GATTS_SYS_ATTR_MISSING),
 };
 
 static name_map_t sd_rpc_app_status_map = {
@@ -224,6 +242,16 @@ uint8_t ConversionUtility::getNativeBool(v8::Local<v8::Object>js, const char *na
 }
 
 uint8_t ConversionUtility::getNativeBool(v8::Local<v8::Value>js)
+{
+    return ConvUtil<bool>::getNativeBool(js);
+}
+
+bool ConversionUtility::getBool(v8::Local<v8::Object>js, const char *name)
+{
+    RETURN_VALUE_OR_THROW_EXCEPTION(ConvUtil<bool>::getNativeBool(js, name));
+}
+
+bool ConversionUtility::getBool(v8::Local<v8::Value>js)
 {
     return ConvUtil<bool>::getNativeBool(js);
 }
@@ -580,6 +608,12 @@ v8::Local<v8::Value> Utility::Get(v8::Local<v8::Object> jsobj, const char *name)
     return scope.Escape(Nan::Get(jsobj, Nan::New(name).ToLocalChecked()).ToLocalChecked());
 }
 
+v8::Local<v8::Value> Utility::Get(v8::Local<v8::Object> jsobj, const int index)
+{
+    Nan::EscapableHandleScope scope;
+    return scope.Escape(Nan::Get(jsobj, index).ToLocalChecked());
+}
+
 void Utility::SetMethod(v8::Handle<v8::Object> target, const char *exportName, Nan::FunctionCallback function)
 {
     Utility::Set(target,
@@ -675,9 +709,37 @@ bool Utility::IsNull(v8::Local<v8::Object> jsobj)
     return jsobj->IsNull();
 }
 
-v8::Local<v8::Value> ErrorMessage::getErrorMessage(int errorCode, char const *customMessage)
+bool Utility::IsBetween(const uint8_t value, const uint8_t min, const uint8_t max)
+{
+    if (value < min || value > max)
+    {
+        return false;
+    }
+
+    return true;
+}
+
+bool Utility::EnsureAsciiNumbers(uint8_t *value, const int length)
+{
+    for (int i = 0; i < length; ++i)
+    {
+        if (IsBetween(value[i], 0, 9))
+        {
+            value[i] = value[i] + '0';
+        }
+        else if (!IsBetween(value[i], '0', '9'))
+        {
+            return false;
+        }
+    }
+
+    return true;
+}
+
+v8::Local<v8::Value> ErrorMessage::getErrorMessage(const int errorCode, const std::string customMessage)
 {
     Nan::EscapableHandleScope scope;
+
     switch (errorCode)
     {
         case NRF_SUCCESS:
@@ -700,20 +762,21 @@ v8::Local<v8::Value> ErrorMessage::getErrorMessage(int errorCode, char const *cu
         case NRF_ERROR_FORBIDDEN:
         case NRF_ERROR_INVALID_ADDR:
         case NRF_ERROR_BUSY:
+        case NRF_ERROR_CONN_COUNT:
+        case NRF_ERROR_RESOURCES:
         default:
         {
             std::ostringstream errorStringStream;
             errorStringStream << "Error occured when " << customMessage << ". "
-                << "Errorcode: " << ConversionUtility::valueToString(errorCode, error_message_name_map) << " (" << errorCode << ")" << std::endl;
+                << "Errorcode: " << ConversionUtility::valueToString(errorCode, error_message_name_map) << " (0x" << std::hex << errorCode << ")" << std::endl;
 
-            v8::Local<v8::Value> error = v8::Exception::Error(ConversionUtility::toJsString(errorStringStream.str())->ToString());
-
+            v8::Local<v8::Value> error = Nan::Error(ConversionUtility::toJsString(errorStringStream.str())->ToString());
             v8::Local<v8::Object> errorObject = error.As<v8::Object>();
 
             Utility::Set(errorObject, "errno", errorCode);
             Utility::Set(errorObject, "errcode", ConversionUtility::valueToString(errorCode, error_message_name_map));
             Utility::Set(errorObject, "erroperation", ConversionUtility::toJsString(customMessage));
-            Utility::Set(errorObject, "errmsg", errorStringStream.str());
+            Utility::Set(errorObject, "errmsg", ConversionUtility::toJsString(errorStringStream.str()));
 
             return scope.Escape(error);
         }
@@ -721,7 +784,7 @@ v8::Local<v8::Value> ErrorMessage::getErrorMessage(int errorCode, char const *cu
 }
 
 
-v8::Local<v8::Value> StatusMessage::getStatus(int status, char const *message, char const *timestamp)
+v8::Local<v8::Value> StatusMessage::getStatus(const int status, const std::string message, const std::string timestamp)
 {
     Nan::EscapableHandleScope scope;
 
@@ -735,7 +798,7 @@ v8::Local<v8::Value> StatusMessage::getStatus(int status, char const *message, c
     return scope.Escape(obj);
 }
 
-v8::Local<v8::String> ErrorMessage::getTypeErrorMessage(int argumentNumber, char const *message)
+v8::Local<v8::String> ErrorMessage::getTypeErrorMessage(const int argumentNumber, const std::string message)
 {
     std::ostringstream stream;
 
@@ -772,10 +835,13 @@ v8::Local<v8::String> ErrorMessage::getTypeErrorMessage(int argumentNumber, char
     return ConversionUtility::toJsString(stream.str())->ToString();
 }
 
-v8::Local<v8::String> ErrorMessage::getStructErrorMessage(char const *name, char const *message)
+v8::Local<v8::String> ErrorMessage::getStructErrorMessage(const std::string name, const std::string message)
 {
-    auto errormessage = "Property: " + std::string(name) + " Message: " + std::string(message);
-    return ConversionUtility::toJsString(errormessage)->ToString();
+    std::ostringstream stream;
+
+    stream << "Property: " << name << " Message: " << message;
+
+    return ConversionUtility::toJsString(stream.str())->ToString();
 }
 
 v8::Local<v8::Value> HciStatus::getHciStatus(int statusCode)

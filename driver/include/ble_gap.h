@@ -50,6 +50,10 @@
 #include "ble_types.h"
 #include "ble_ranges.h"
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 /**@addtogroup BLE_GAP_ENUMERATIONS Enumerations
  * @{ */
 
@@ -74,6 +78,10 @@ enum BLE_GAP_SVCS
   SD_BLE_GAP_AUTHENTICATE,                     /**< Initiate Pairing/Bonding. */
   SD_BLE_GAP_SEC_PARAMS_REPLY,                 /**< Reply with Security Parameters. */
   SD_BLE_GAP_AUTH_KEY_REPLY,                   /**< Reply with an authentication key. */
+  SD_BLE_GAP_LESC_DHKEY_REPLY,                 /**< Reply with an LE Secure Connections DHKey. */
+  SD_BLE_GAP_KEYPRESS_NOTIFY,                  /**< Notify of a keypress during an authentication procedure. */
+  SD_BLE_GAP_LESC_OOB_DATA_GET,                /**< Get the local LE Secure Connections OOB data. */
+  SD_BLE_GAP_LESC_OOB_DATA_SET,                /**< Set the remote LE Secure Connections OOB data. */
   SD_BLE_GAP_ENCRYPT,                          /**< Initiate encryption procedure. */
   SD_BLE_GAP_SEC_INFO_REPLY,                   /**< Reply with Security Information. */
   SD_BLE_GAP_CONN_SEC_GET,                     /**< Obtain connection security level. */
@@ -91,21 +99,23 @@ enum BLE_GAP_SVCS
  */
 enum BLE_GAP_EVTS
 {
-  BLE_GAP_EVT_CONNECTED  = BLE_GAP_EVT_BASE,    /**< Connection established. @ref ble_gap_evt_connected_t */
-  BLE_GAP_EVT_DISCONNECTED,                     /**< Disconnected from peer. @ref ble_gap_evt_disconnected_t */
-  BLE_GAP_EVT_CONN_PARAM_UPDATE,                /**< Connection Parameters updated. ble_gap_evt_conn_param_update_t */
-  BLE_GAP_EVT_SEC_PARAMS_REQUEST,               /**< Request to provide security parameters. @ref ble_gap_evt_sec_params_request_t */
-  BLE_GAP_EVT_SEC_INFO_REQUEST,                 /**< Request to provide security information. @ref ble_gap_evt_sec_info_request_t */
-  BLE_GAP_EVT_PASSKEY_DISPLAY,                  /**< Request to display a passkey to the user. @ref ble_gap_evt_passkey_display_t */
-  BLE_GAP_EVT_AUTH_KEY_REQUEST,                 /**< Request to provide an authentication key. @ref ble_gap_evt_auth_key_request_t */
-  BLE_GAP_EVT_AUTH_STATUS,                      /**< Authentication procedure completed with status. @ref ble_gap_evt_auth_status_t */
-  BLE_GAP_EVT_CONN_SEC_UPDATE,                  /**< Connection security updated. @ref ble_gap_evt_conn_sec_update_t */
-  BLE_GAP_EVT_TIMEOUT,                          /**< Timeout expired. @ref ble_gap_evt_timeout_t */
-  BLE_GAP_EVT_RSSI_CHANGED,                     /**< RSSI report. @ref ble_gap_evt_rssi_changed_t */
-  BLE_GAP_EVT_ADV_REPORT,                       /**< Advertising report. @ref ble_gap_evt_adv_report_t */
-  BLE_GAP_EVT_SEC_REQUEST,                      /**< Security Request. @ref ble_gap_evt_sec_request_t */
-  BLE_GAP_EVT_CONN_PARAM_UPDATE_REQUEST,        /**< Connection Parameter Update Request. @ref ble_gap_evt_conn_param_update_request_t */
-  BLE_GAP_EVT_SCAN_REQ_REPORT,                  /**< Scan request report. @ref ble_gap_evt_scan_req_report_t */
+  BLE_GAP_EVT_CONNECTED  = BLE_GAP_EVT_BASE,    /**< Connection established.                         \n See @ref ble_gap_evt_connected_t.            */
+  BLE_GAP_EVT_DISCONNECTED,                     /**< Disconnected from peer.                         \n See @ref ble_gap_evt_disconnected_t.         */
+  BLE_GAP_EVT_CONN_PARAM_UPDATE,                /**< Connection Parameters updated.                  \n See @ref ble_gap_evt_conn_param_update_t.    */
+  BLE_GAP_EVT_SEC_PARAMS_REQUEST,               /**< Request to provide security parameters.         \n Reply with @ref sd_ble_gap_sec_params_reply.  \n See @ref ble_gap_evt_sec_params_request_t. */
+  BLE_GAP_EVT_SEC_INFO_REQUEST,                 /**< Request to provide security information.        \n Reply with @ref sd_ble_gap_sec_info_reply.    \n See @ref ble_gap_evt_sec_info_request_t.   */
+  BLE_GAP_EVT_PASSKEY_DISPLAY,                  /**< Request to display a passkey to the user.       \n In LESC Numeric Comparison, reply with @ref sd_ble_gap_auth_key_reply. \n See @ref ble_gap_evt_passkey_display_t. */
+  BLE_GAP_EVT_KEY_PRESSED,                      /**< Notification of a keypress on the remote device.\n See @ref ble_gap_evt_key_pressed_t           */
+  BLE_GAP_EVT_AUTH_KEY_REQUEST,                 /**< Request to provide an authentication key.       \n Reply with @ref sd_ble_gap_auth_key_reply.    \n See @ref ble_gap_evt_auth_key_request_t.   */
+  BLE_GAP_EVT_LESC_DHKEY_REQUEST,               /**< Request to calculate an LE Secure Connections DHKey. \n Reply with @ref sd_ble_gap_lesc_dhkey_reply.  \n See @ref ble_gap_evt_lesc_dhkey_request_t */
+  BLE_GAP_EVT_AUTH_STATUS,                      /**< Authentication procedure completed with status. \n See @ref ble_gap_evt_auth_status_t.          */
+  BLE_GAP_EVT_CONN_SEC_UPDATE,                  /**< Connection security updated.                    \n See @ref ble_gap_evt_conn_sec_update_t.      */
+  BLE_GAP_EVT_TIMEOUT,                          /**< Timeout expired.                                \n See @ref ble_gap_evt_timeout_t.              */
+  BLE_GAP_EVT_RSSI_CHANGED,                     /**< RSSI report.                                    \n See @ref ble_gap_evt_rssi_changed_t.         */
+  BLE_GAP_EVT_ADV_REPORT,                       /**< Advertising report.                             \n See @ref ble_gap_evt_adv_report_t.           */
+  BLE_GAP_EVT_SEC_REQUEST,                      /**< Security Request.                               \n See @ref ble_gap_evt_sec_request_t.          */
+  BLE_GAP_EVT_CONN_PARAM_UPDATE_REQUEST,        /**< Connection Parameter Update Request.            \n Reply with @ref sd_ble_gap_conn_param_update. \n See @ref ble_gap_evt_conn_param_update_request_t. */
+  BLE_GAP_EVT_SCAN_REQ_REPORT,                  /**< Scan request report.                            \n See @ref ble_gap_evt_scan_req_report_t.      */
 };
 
 /**@brief GAP Option IDs.
@@ -120,6 +130,7 @@ enum BLE_GAP_OPTS
   BLE_GAP_OPT_SCAN_REQ_REPORT,                  /**< Scan request report. @ref ble_gap_opt_scan_req_report_t */
   BLE_GAP_OPT_COMPAT_MODE                       /**< Compatibility mode. @ref ble_gap_opt_compat_mode_t */
 };
+
 /** @} */
 
 /**@addtogroup BLE_GAP_DEFINES Defines
@@ -205,6 +216,7 @@ enum BLE_GAP_OPTS
 #define BLE_GAP_AD_TYPE_SIMPLE_PAIRING_RANDOMIZER_R256      0x1E /**< Simple Pairing Randomizer R-256. */
 #define BLE_GAP_AD_TYPE_SERVICE_DATA_32BIT_UUID             0x20 /**< Service Data - 32-bit UUID. */
 #define BLE_GAP_AD_TYPE_SERVICE_DATA_128BIT_UUID            0x21 /**< Service Data - 128-bit UUID. */
+#define BLE_GAP_AD_TYPE_URI                                 0x24 /**< URI */
 #define BLE_GAP_AD_TYPE_3D_INFORMATION_DATA                 0x3D /**< 3D Information Data. */
 #define BLE_GAP_AD_TYPE_MANUFACTURER_SPECIFIC_DATA          0xFF /**< Manufacturer Specific Data. */
 /**@} */
@@ -296,12 +308,20 @@ enum BLE_GAP_OPTS
 #define BLE_GAP_IO_CAPS_KEYBOARD_DISPLAY  0x04   /**< Keyboard and Display. */
 /**@} */
 
-
 /**@defgroup BLE_GAP_AUTH_KEY_TYPES GAP Authentication Key Types
  * @{ */
 #define BLE_GAP_AUTH_KEY_TYPE_NONE        0x00   /**< No key (may be used to reject). */
 #define BLE_GAP_AUTH_KEY_TYPE_PASSKEY     0x01   /**< 6-digit Passkey. */
 #define BLE_GAP_AUTH_KEY_TYPE_OOB         0x02   /**< Out Of Band data. */
+/**@} */
+
+/**@defgroup BLE_GAP_KP_NOT_TYPES GAP Keypress Notification Types
+ * @{ */
+#define BLE_GAP_KP_NOT_TYPE_PASSKEY_START       0x00   /**< Passkey entry started. */
+#define BLE_GAP_KP_NOT_TYPE_PASSKEY_DIGIT_IN    0x01   /**< Passkey digit entered. */
+#define BLE_GAP_KP_NOT_TYPE_PASSKEY_DIGIT_OUT   0x02   /**< Passkey digit erased. */
+#define BLE_GAP_KP_NOT_TYPE_PASSKEY_CLEAR       0x03   /**< Passkey cleared. */
+#define BLE_GAP_KP_NOT_TYPE_PASSKEY_END         0x04   /**< Passkey entry completed. */
 /**@} */
 
 /**@defgroup BLE_GAP_SEC_STATUS GAP Security status
@@ -321,7 +341,11 @@ enum BLE_GAP_OPTS
 #define BLE_GAP_SEC_STATUS_UNSPECIFIED            0x88  /**< Unspecified reason. */
 #define BLE_GAP_SEC_STATUS_REPEATED_ATTEMPTS      0x89  /**< Too little time elapsed since last attempt. */
 #define BLE_GAP_SEC_STATUS_INVALID_PARAMS         0x8A  /**< Invalid parameters. */
-#define BLE_GAP_SEC_STATUS_RFU_RANGE2_BEGIN       0x8B  /**< Reserved for Future Use range #2 begin. */
+#define BLE_GAP_SEC_STATUS_DHKEY_FAILURE          0x8B  /**< DHKey check failure. */
+#define BLE_GAP_SEC_STATUS_NUM_COMP_FAILURE       0x8C  /**< Numeric Comparison failure. */
+#define BLE_GAP_SEC_STATUS_BR_EDR_IN_PROG         0x8D  /**< BR/EDR pairing in progress. */
+#define BLE_GAP_SEC_STATUS_X_TRANS_KEY_DISALLOWED 0x8E  /**< BR/EDR Link Key cannot be used for LE keys. */
+#define BLE_GAP_SEC_STATUS_RFU_RANGE2_BEGIN       0x8F  /**< Reserved for Future Use range #2 begin. */
 #define BLE_GAP_SEC_STATUS_RFU_RANGE2_END         0xFF  /**< Reserved for Future Use range #2 end. */
 /**@} */
 
@@ -333,10 +357,10 @@ enum BLE_GAP_OPTS
 
 /**@defgroup BLE_GAP_CP_LIMITS GAP Connection Parameters Limits
  * @{ */
-#define BLE_GAP_CP_MIN_CONN_INTVL_NONE           0xFFFF  /**< No new minimum connction interval specified in connect parameters. */
-#define BLE_GAP_CP_MIN_CONN_INTVL_MIN            0x0006  /**< Lowest mimimum connection interval permitted, in units of 1.25 ms, i.e. 7.5 ms. */
+#define BLE_GAP_CP_MIN_CONN_INTVL_NONE           0xFFFF  /**< No new minimum connection interval specified in connect parameters. */
+#define BLE_GAP_CP_MIN_CONN_INTVL_MIN            0x0006  /**< Lowest minimum connection interval permitted, in units of 1.25 ms, i.e. 7.5 ms. */
 #define BLE_GAP_CP_MIN_CONN_INTVL_MAX            0x0C80  /**< Highest minimum connection interval permitted, in units of 1.25 ms, i.e. 4 s. */
-#define BLE_GAP_CP_MAX_CONN_INTVL_NONE           0xFFFF  /**< No new maximum connction interval specified in connect parameters. */
+#define BLE_GAP_CP_MAX_CONN_INTVL_NONE           0xFFFF  /**< No new maximum connection interval specified in connect parameters. */
 #define BLE_GAP_CP_MAX_CONN_INTVL_MIN            0x0006  /**< Lowest maximum connection interval permitted, in units of 1.25 ms, i.e. 7.5 ms. */
 #define BLE_GAP_CP_MAX_CONN_INTVL_MAX            0x0C80  /**< Highest maximum connection interval permitted, in units of 1.25 ms, i.e. 4 s. */
 #define BLE_GAP_CP_SLAVE_LATENCY_MAX             0x01F3  /**< Highest slave latency permitted, in connection events. */
@@ -357,17 +381,19 @@ enum BLE_GAP_OPTS
  * See @ref ble_gap_conn_sec_mode_t.
  * @{ */
 /**@brief Set sec_mode pointed to by ptr to have no access rights.*/
-#define BLE_GAP_CONN_SEC_MODE_SET_NO_ACCESS(ptr)         do {(ptr)->sm = 0; (ptr)->lv = 0;} while(0)
+#define BLE_GAP_CONN_SEC_MODE_SET_NO_ACCESS(ptr)          do {(ptr)->sm = 0; (ptr)->lv = 0;} while(0)
 /**@brief Set sec_mode pointed to by ptr to require no protection, open link.*/
-#define BLE_GAP_CONN_SEC_MODE_SET_OPEN(ptr)              do {(ptr)->sm = 1; (ptr)->lv = 1;} while(0)
+#define BLE_GAP_CONN_SEC_MODE_SET_OPEN(ptr)               do {(ptr)->sm = 1; (ptr)->lv = 1;} while(0)
 /**@brief Set sec_mode pointed to by ptr to require encryption, but no MITM protection.*/
-#define BLE_GAP_CONN_SEC_MODE_SET_ENC_NO_MITM(ptr)       do {(ptr)->sm = 1; (ptr)->lv = 2;} while(0)
+#define BLE_GAP_CONN_SEC_MODE_SET_ENC_NO_MITM(ptr)        do {(ptr)->sm = 1; (ptr)->lv = 2;} while(0)
 /**@brief Set sec_mode pointed to by ptr to require encryption and MITM protection.*/
-#define BLE_GAP_CONN_SEC_MODE_SET_ENC_WITH_MITM(ptr)     do {(ptr)->sm = 1; (ptr)->lv = 3;} while(0)
+#define BLE_GAP_CONN_SEC_MODE_SET_ENC_WITH_MITM(ptr)      do {(ptr)->sm = 1; (ptr)->lv = 3;} while(0)
+/**@brief Set sec_mode pointed to by ptr to require LESC encryption and MITM protection.*/
+#define BLE_GAP_CONN_SEC_MODE_SET_LESC_ENC_WITH_MITM(ptr) do {(ptr)->sm = 1; (ptr)->lv = 4;} while(0)
 /**@brief Set sec_mode pointed to by ptr to require signing or encryption, no MITM protection needed.*/
-#define BLE_GAP_CONN_SEC_MODE_SET_SIGNED_NO_MITM(ptr)    do {(ptr)->sm = 2; (ptr)->lv = 1;} while(0)
+#define BLE_GAP_CONN_SEC_MODE_SET_SIGNED_NO_MITM(ptr)     do {(ptr)->sm = 2; (ptr)->lv = 1;} while(0)
 /**@brief Set sec_mode pointed to by ptr to require signing or encryption with MITM protection.*/
-#define BLE_GAP_CONN_SEC_MODE_SET_SIGNED_WITH_MITM(ptr)  do {(ptr)->sm = 2; (ptr)->lv = 2;} while(0)
+#define BLE_GAP_CONN_SEC_MODE_SET_SIGNED_WITH_MITM(ptr)   do {(ptr)->sm = 2; (ptr)->lv = 2;} while(0)
 /**@} */
 
 
@@ -376,6 +402,12 @@ enum BLE_GAP_OPTS
 
 /**@brief GAP Security Key Length. */
 #define BLE_GAP_SEC_KEY_LEN 16
+
+/**@brief GAP LE Secure Connections Elliptic Curve Diffie-Hellman P-256 Public Key Length. */
+#define BLE_GAP_LESC_P256_PK_LEN 64
+
+/**@brief GAP LE Secure Connections Elliptic Curve Diffie-Hellman DHKey Length. */
+#define BLE_GAP_LESC_DHKEY_LEN   32
 
 /**@brief GAP Passkey Length. */
 #define BLE_GAP_PASSKEY_LEN 6
@@ -392,11 +424,20 @@ enum BLE_GAP_OPTS
  * @{ */
 #define BLE_GAP_SEC_MODE 0x00 /**< No key (may be used to reject). */
 /**@} */
-
-/**@} */
+/** @} */
 
 /**@addtogroup BLE_GAP_STRUCTURES Structures
  * @{ */
+
+/**
+ * @brief BLE GAP initialization parameters.
+ */
+typedef struct
+{
+  uint8_t                   periph_conn_count;  /**< Number of connections acting as a peripheral  */
+  uint8_t                   central_conn_count; /**< Number of connections acting as a central */
+  uint8_t                   central_sec_count;  /**< Number of SMP instances for all connections acting as a central. */
+} ble_gap_enable_params_t;
 
 /**@brief Bluetooth Low Energy address. */
 typedef struct
@@ -432,13 +473,14 @@ typedef struct
  * Security Mode 1 Level 1: No security is needed (aka open link).\n
  * Security Mode 1 Level 2: Encrypted link required, MITM protection not necessary.\n
  * Security Mode 1 Level 3: MITM protected encrypted link required.\n
+ * Security Mode 1 Level 4: LESC MITM protected encrypted link required.\n
  * Security Mode 2 Level 1: Signing or encryption required, MITM protection not necessary.\n
  * Security Mode 2 Level 2: MITM protected signing required, unless link is MITM protected encrypted.\n
  */
 typedef struct
 {
   uint8_t sm : 4;                     /**< Security Mode (1 or 2), 0 for no permissions at all. */
-  uint8_t lv : 4;                     /**< Level (1, 2 or 3), 0 for no permissions at all. */
+  uint8_t lv : 4;                     /**< Level (1, 2, 3 or 4), 0 for no permissions at all. */
 
 } ble_gap_conn_sec_mode_t;
 
@@ -467,7 +509,7 @@ typedef struct
   uint8_t             irk_count;       /**< Count of IRKs in array, up to @ref BLE_GAP_WHITELIST_IRK_MAX_COUNT. */
 } ble_gap_whitelist_t;
 
-/**@brief Channel mask for RF channels used in advertising and scanning. */
+/**@brief Channel mask for RF channels used in advertising. */
 typedef struct
 {
   uint8_t ch_37_off : 1;  /**< Setting this bit to 1 will turn off advertising on channel 37 */
@@ -486,7 +528,7 @@ typedef struct
                                                    - If type equals @ref BLE_GAP_ADV_TYPE_ADV_DIRECT_IND, this parameter must be set to 0 for high duty cycle directed advertising.
                                                    - If type equals @ref BLE_GAP_ADV_TYPE_ADV_DIRECT_IND, set @ref BLE_GAP_ADV_INTERVAL_MIN <= interval <= @ref BLE_GAP_ADV_INTERVAL_MAX for low duty cycle advertising.*/
   uint16_t              timeout;              /**< Advertising timeout between 0x0001 and 0x3FFF in seconds, 0x0000 disables timeout. See also @ref BLE_GAP_ADV_TIMEOUT_VALUES. If type equals @ref BLE_GAP_ADV_TYPE_ADV_DIRECT_IND, this parameter must be set to 0 for High duty cycle directed advertising. */
-  ble_gap_adv_ch_mask_t channel_mask;         /**< Advertising channel mask. @see ble_gap_channel_mask_t for documentation. */
+  ble_gap_adv_ch_mask_t channel_mask;         /**< Advertising channel mask. See @ref ble_gap_adv_ch_mask_t. */
 } ble_gap_adv_params_t;
 
 
@@ -508,20 +550,23 @@ typedef struct
   uint8_t enc     : 1;                        /**< Long Term Key and Master Identification. */
   uint8_t id      : 1;                        /**< Identity Resolving Key and Identity Address Information. */
   uint8_t sign    : 1;                        /**< Connection Signature Resolving Key. */
+  uint8_t link    : 1;                        /**< Derive the Link Key from the LTK. */
 } ble_gap_sec_kdist_t;
 
 
 /**@brief GAP security parameters. */
 typedef struct
 {
-  uint8_t               bond    : 1;               /**< Perform bonding. */
-  uint8_t               mitm    : 1;               /**< Man In The Middle protection required. */
-  uint8_t               io_caps : 3;               /**< IO capabilities, see @ref BLE_GAP_IO_CAPS. */
-  uint8_t               oob     : 1;               /**< Out Of Band data available. */
+  uint8_t               bond      : 1;             /**< Perform bonding. */
+  uint8_t               mitm      : 1;             /**< Enable Man In The Middle protection. */
+  uint8_t               lesc      : 1;             /**< Enable LE Secure Connection pairing. */
+  uint8_t               keypress  : 1;             /**< Enable generation of keypress notifications. */
+  uint8_t               io_caps   : 3;             /**< IO capabilities, see @ref BLE_GAP_IO_CAPS. */
+  uint8_t               oob       : 1;             /**< Out Of Band data available. */
   uint8_t               min_key_size;              /**< Minimum encryption key size in octets between 7 and 16. If 0 then not applicable in this instance. */
   uint8_t               max_key_size;              /**< Maximum encryption key size in octets between min_key_size and 16. */
-  ble_gap_sec_kdist_t   kdist_periph;              /**< Key distribution bitmap: keys that the peripheral device will distribute. */
-  ble_gap_sec_kdist_t   kdist_central;             /**< Key distribution bitmap: keys that the central device will distribute. */
+  ble_gap_sec_kdist_t   kdist_own;                 /**< Key distribution bitmap: keys that the local device will distribute. */
+  ble_gap_sec_kdist_t   kdist_peer;                /**< Key distribution bitmap: keys that the remote device will distribute. */
 } ble_gap_sec_params_t;
 
 
@@ -529,8 +574,9 @@ typedef struct
 typedef struct
 {
   uint8_t   ltk[BLE_GAP_SEC_KEY_LEN];   /**< Long Term Key. */
+  uint8_t   lesc : 1;                   /**< Key generated using LE Secure Connections. */
   uint8_t   auth : 1;                   /**< Authenticated Key. */
-  uint8_t   ltk_len : 7;                /**< LTK length in octets. */
+  uint8_t   ltk_len : 6;                /**< LTK length in octets. */
 } ble_gap_enc_info_t;
 
 
@@ -548,6 +594,25 @@ typedef struct
   uint8_t   csrk[BLE_GAP_SEC_KEY_LEN];        /**< Connection Signature Resolving Key. */
 } ble_gap_sign_info_t;
 
+/**@brief GAP LE Secure Connections P-256 Public Key. */
+typedef struct
+{
+  uint8_t   pk[BLE_GAP_LESC_P256_PK_LEN];        /**< LE Secure Connections Elliptic Curve Diffie-Hellman P-256 Public Key. Stored in the standard SMP protocol format: {X,Y} both in little-endian. */
+} ble_gap_lesc_p256_pk_t;
+
+/**@brief GAP LE Secure Connections DHKey. */
+typedef struct
+{
+  uint8_t   key[BLE_GAP_LESC_DHKEY_LEN];        /**< LE Secure Connections Elliptic Curve Diffie-Hellman Key. Stored in little-endian. */
+} ble_gap_lesc_dhkey_t;
+
+/**@brief GAP LE Secure Connections OOB data. */
+typedef struct
+{
+  ble_gap_addr_t  addr;                          /**< Bluetooth address of the device. */
+  uint8_t         r[BLE_GAP_SEC_KEY_LEN];        /**< Random Number. */
+  uint8_t         c[BLE_GAP_SEC_KEY_LEN];        /**< Confirm Value. */
+} ble_gap_lesc_oob_data_t;
 
 /**@brief Event structure for @ref BLE_GAP_EVT_CONNECTED. */
 typedef struct
@@ -597,7 +662,16 @@ typedef struct
 typedef struct
 {
   uint8_t passkey[BLE_GAP_PASSKEY_LEN];         /**< 6-digit passkey in ASCII ('0'-'9' digits only). */
+  uint8_t match_request : 1;                    /**< If 1 requires the application to report the match using @ref sd_ble_gap_auth_key_reply 
+                                                     with either @ref BLE_GAP_AUTH_KEY_TYPE_NONE if there is no match or 
+                                                     @ref BLE_GAP_AUTH_KEY_TYPE_PASSKEY if there is a match. */
 } ble_gap_evt_passkey_display_t;
+
+/**@brief Event structure for @ref BLE_GAP_EVT_KEY_PRESSED. */
+typedef struct
+{
+  uint8_t kp_not;         /**< Keypress notification type, see @ref BLE_GAP_KP_NOT_TYPES. */
+} ble_gap_evt_key_pressed_t;
 
 
 /**@brief Event structure for @ref BLE_GAP_EVT_AUTH_KEY_REQUEST. */
@@ -606,15 +680,24 @@ typedef struct
   uint8_t key_type;                             /**< See @ref BLE_GAP_AUTH_KEY_TYPES. */
 } ble_gap_evt_auth_key_request_t;
 
+/**@brief Event structure for @ref BLE_GAP_EVT_LESC_DHKEY_REQUEST. */
+typedef struct
+{
+  ble_gap_lesc_p256_pk_t *p_pk_peer;  /**< LE Secure Connections remote P-256 Public Key. This will point to the application-supplied memory 
+                                           inside the keyset during the call to @ref sd_ble_gap_sec_params_reply. */
+  uint8_t oobd_req       :1;          /**< LESC OOB data required. A call to @ref sd_ble_gap_lesc_oob_data_set is required to complete the procedure. */
+} ble_gap_evt_lesc_dhkey_request_t;
+
 
 /**@brief Security levels supported.
- * @note See Bluetooth Specification Version 4.1 Volume 3, Part C, Chapter 10.
+ * @note See Bluetooth Specification Version 4.2 Volume 3, Part C, Chapter 10, Section 10.2.1.
 */
 typedef struct
 {
   uint8_t lv1 : 1;                              /**< If 1: Level 1 is supported. */
   uint8_t lv2 : 1;                              /**< If 1: Level 2 is supported. */
   uint8_t lv3 : 1;                              /**< If 1: Level 3 is supported. */
+  uint8_t lv4 : 1;                              /**< If 1: Level 4 is supported. */
 } ble_gap_sec_levels_t;
 
 
@@ -637,19 +720,19 @@ typedef struct
 /**@brief Security Keys. */
 typedef struct
 {
-  ble_gap_enc_key_t     *p_enc_key;           /**< Encryption Key, or NULL. */
-  ble_gap_id_key_t      *p_id_key;            /**< Identity Key, or NULL. */
-  ble_gap_sign_info_t   *p_sign_key;          /**< Signing Key, or NULL. */
+  ble_gap_enc_key_t      *p_enc_key;           /**< Encryption Key, or NULL. */
+  ble_gap_id_key_t       *p_id_key;            /**< Identity Key, or NULL. */
+  ble_gap_sign_info_t    *p_sign_key;          /**< Signing Key, or NULL. */
+  ble_gap_lesc_p256_pk_t *p_pk;                /**< LE Secure Connections P-256 Public Key. When in debug mode the application must use the value defined 
+                                                    in the Core Bluetooth Specification v4.2 Vol.3, Part H, Section 2.3.5.6.1 */
 } ble_gap_sec_keys_t;
 
 
-/**@brief Security key set (both Peripheral and Central keys).
- *         Note that when distributing Bluetooth addresses pertaining to the local device those
- *         will have to be filled in by the user. */
+/**@brief Security key set for both local and peer keys. */
 typedef struct
 {
-  ble_gap_sec_keys_t keys_periph;     /**< Keys distributed by the device in the Peripheral role. */
-  ble_gap_sec_keys_t keys_central;    /**< Keys distributed by the device in the Central role. */
+  ble_gap_sec_keys_t            keys_own;     /**< Keys distributed by the local device. For LE Secure Connections the encryption key will be generated locally and will always be stored if bonding. */
+  ble_gap_sec_keys_t            keys_peer;    /**< Keys distributed by the remote device. For LE Secure Connections, p_enc_key must always be NULL. */
 } ble_gap_sec_keyset_t;
 
 
@@ -661,8 +744,8 @@ typedef struct
   uint8_t               bonded : 1;             /**< Procedure resulted in a bond. */
   ble_gap_sec_levels_t  sm1_levels;             /**< Levels supported in Security Mode 1. */
   ble_gap_sec_levels_t  sm2_levels;             /**< Levels supported in Security Mode 2. */
-  ble_gap_sec_kdist_t   kdist_periph;           /**< Bitmap stating which keys were exchanged (distributed) by the peripheral. */
-  ble_gap_sec_kdist_t   kdist_central;          /**< Bitmap stating which keys were exchanged (distributed) by the central. */
+  ble_gap_sec_kdist_t   kdist_own;              /**< Bitmap stating which keys were exchanged (distributed) by the local device. If bonding with LE Secure Connections, the enc bit will be always set. */
+  ble_gap_sec_kdist_t   kdist_peer;             /**< Bitmap stating which keys were exchanged (distributed) by the remote device. If bonding with LE Secure Connections, the enc bit will never be set. */
 } ble_gap_evt_auth_status_t;
 
 
@@ -702,8 +785,10 @@ typedef struct
 /**@brief Event structure for @ref BLE_GAP_EVT_SEC_REQUEST. */
 typedef struct
 {
-  uint8_t    bond    : 1;                       /**< Perform bonding. */
-  uint8_t    mitm    : 1;                       /**< Man In The Middle protection required. */
+  uint8_t    bond       : 1;                       /**< Perform bonding. */
+  uint8_t    mitm       : 1;                       /**< Man In The Middle protection requested. */
+  uint8_t    lesc       : 1;                       /**< LE Secure Connections requested. */
+  uint8_t    keypress   : 1;                       /**< Generation of keypress notifications requested. */
 } ble_gap_evt_sec_request_t;
 
 
@@ -726,7 +811,7 @@ typedef struct
 /**@brief GAP event structure. */
 typedef struct
 {
-  uint16_t conn_handle;                                     /**< Connection Handle on which event occured. */
+  uint16_t conn_handle;                                     /**< Connection Handle on which event occurred. */
   union                                                     /**< union alternative identified by evt_id in enclosing struct. */
   {
     ble_gap_evt_connected_t                   connected;                    /**< Connected Event Parameters. */
@@ -735,7 +820,9 @@ typedef struct
     ble_gap_evt_sec_params_request_t          sec_params_request;           /**< Security Parameters Request Event Parameters. */
     ble_gap_evt_sec_info_request_t            sec_info_request;             /**< Security Information Request Event Parameters. */
     ble_gap_evt_passkey_display_t             passkey_display;              /**< Passkey Display Event Parameters. */
+    ble_gap_evt_key_pressed_t                 key_pressed;                  /**< Key Pressed Event Parameters. */
     ble_gap_evt_auth_key_request_t            auth_key_request;             /**< Authentication Key Request Event Parameters. */
+    ble_gap_evt_lesc_dhkey_request_t          lesc_dhkey_request;           /**< LE Secure Connections DHKey calculation request. */
     ble_gap_evt_auth_status_t                 auth_status;                  /**< Authentication Status Event Parameters. */
     ble_gap_evt_conn_sec_update_t             conn_sec_update;              /**< Connection Security Update Event Parameters. */
     ble_gap_evt_timeout_t                     timeout;                      /**< Timeout Event Parameters. */
@@ -886,7 +973,6 @@ typedef struct
    uint8_t mode_1_enable : 1;                           /**< Enable compatibility mode 1.*/
 } ble_gap_opt_compat_mode_t;
 
-
 /**@brief Option structure for GAP options. */
 typedef union
 {
@@ -917,6 +1003,10 @@ typedef union
  * @ref BLE_GAP_ADDR_TYPE_RANDOM_STATIC address, the cycle mode must be
  * @ref BLE_GAP_ADDR_CYCLE_MODE_NONE.
  *
+ * @note By default the SoftDevice will set an address of type @ref BLE_GAP_ADDR_TYPE_RANDOM_STATIC upon being
+ * enabled. The address is a random number populated during the IC manufacturing process and remains unchanged
+ * for the lifetime of each IC.
+ *
  * @note If this API function is called while advertising or scanning, the softdevice will immediately update the
  * advertising or scanning address without the need to stop the procedure in the following cases:
  *   - If the previously set address is of type @ref BLE_GAP_ADDR_TYPE_PUBLIC and the new address
@@ -931,6 +1021,10 @@ typedef union
  *       using privacy, the application must take care to generate and set new private addresses
  *       periodically to comply with the Privacy specification in Bluetooth Core Spec.
  *
+ * @mscs
+ * @mmsc{@ref BLE_GAP_ADV_MSC}
+ * @endmscs
+ *
  * @param[in] addr_cycle_mode Address cycle mode, see @ref BLE_GAP_ADDR_CYCLE_MODES.
  * @param[in] p_addr          Pointer to address structure.
  *
@@ -941,7 +1035,7 @@ typedef union
  * @retval ::NRF_ERROR_BUSY The stack is busy, process pending events and retry.
  * @retval ::NRF_ERROR_INVALID_STATE Invalid state to perform operation.
  */
-SD_RPC_API uint32_t sd_ble_gap_address_set(adapter_t *adapter, uint8_t addr_cycle_mode, const ble_gap_addr_t *p_addr);
+SD_RPC_API uint32_t sd_ble_gap_address_set(adapter_t *adapter, uint8_t addr_cycle_mode, ble_gap_addr_t const *p_addr);
 
 
 /**@brief Get local Bluetooth address.
@@ -965,12 +1059,18 @@ SD_RPC_API uint32_t sd_ble_gap_address_get(adapter_t *adapter, ble_gap_addr_t *p
  *
  * @note The call will fail if p_data and p_sr_data are both NULL since this would have no effect.
  *
+ * @mscs
+ * @mmsc{@ref BLE_GAP_ADV_MSC}
+ * @mmsc{@ref BLE_GAP_WL_SHARE_MSC}
+ * @endmscs
+ *
  * @param[in] p_data    Raw data to be placed in advertising packet. If NULL, no changes are made to the current advertising packet data.
  * @param[in] dlen      Data length for p_data. Max size: @ref BLE_GAP_ADV_MAX_SIZE octets. Should be 0 if p_data is NULL, can be 0 if p_data is not NULL.
  * @param[in] p_sr_data Raw data to be placed in scan response packet. If NULL, no changes are made to the current scan response packet data.
  * @param[in] srdlen    Data length for p_sr_data. Max size: @ref BLE_GAP_ADV_MAX_SIZE octets. Should be 0 if p_sr_data is NULL, can be 0 if p_data is not NULL.
  *
  * @retval ::NRF_SUCCESS Advertising data successfully updated or cleared.
+ * @retval ::NRF_ERROR_INVALID_PARAM Invalid parameter(s) supplied, both p_data and p_sr_data cannot be NULL.
  * @retval ::NRF_ERROR_INVALID_ADDR Invalid pointer supplied.
  * @retval ::NRF_ERROR_INVALID_FLAGS Invalid combination of advertising flags supplied.
  * @retval ::NRF_ERROR_INVALID_DATA Invalid data type(s) supplied, check the advertising data format specification.
@@ -991,21 +1091,41 @@ SD_RPC_API uint32_t sd_ble_gap_adv_data_set(adapter_t *adapter, uint8_t const *p
  *
  * @note To use the currently active whitelist set p_adv_params->p_whitelist to NULL.
  *
+ * @events
+ * @event{@ref BLE_GAP_EVT_CONNECTED, Generated after connection has been established through connectable advertising.}
+ * @event{@ref BLE_GAP_EVT_TIMEOUT, Advertisement has timed out.}
+ * @endevents
+ *
+ * @mscs
+ * @mmsc{@ref BLE_GAP_ADV_MSC}
+ * @mmsc{@ref BLE_GAP_WL_SHARE_MSC}
+ * @endmscs
+ *
  * @param[in] p_adv_params Pointer to advertising parameters structure.
  *
  * @retval ::NRF_SUCCESS The BLE stack has started advertising.
  * @retval ::NRF_ERROR_INVALID_ADDR Invalid pointer supplied.
  * @retval ::NRF_ERROR_INVALID_STATE Invalid state to perform operation.
+ * @retval ::NRF_ERROR_CONN_COUNT The limit of available connections has been reached; connectable advertiser cannot be started.
+ * @retval ::NRF_ERROR_NO_MEM The configured memory pools (see @ref ble_conn_bw_counts_t) are not large enough for the
+ *                            bandwidth selected for this connection.
  * @retval ::NRF_ERROR_INVALID_PARAM Invalid parameter(s) supplied, check the accepted ranges and limits.
  * @retval ::BLE_ERROR_GAP_INVALID_BLE_ADDR Invalid Bluetooth address supplied.
  * @retval ::BLE_ERROR_GAP_DISCOVERABLE_WITH_WHITELIST Discoverable mode and whitelist incompatible.
  * @retval ::NRF_ERROR_BUSY The stack is busy, process pending events and retry.
  * @retval ::BLE_ERROR_GAP_WHITELIST_IN_USE Unable to replace the whitelist while another operation is using it.
+ * @retval ::NRF_ERROR_RESOURCES Not enough BLE role slots available.
+ *                               Stop one or more currently active roles (Central, Peripheral or Observer) and try again
  */
 SD_RPC_API uint32_t sd_ble_gap_adv_start(adapter_t *adapter, ble_gap_adv_params_t const *p_adv_params);
 
 
 /**@brief Stop advertising (GAP Discoverable, Connectable modes, Broadcast Procedure).
+ *
+ * @mscs
+ * @mmsc{@ref BLE_GAP_ADV_MSC}
+ * @mmsc{@ref BLE_GAP_WL_SHARE_MSC}
+ * @endmscs
  *
  * @retval ::NRF_SUCCESS The BLE stack has stopped advertising.
  * @retval ::NRF_ERROR_INVALID_STATE Invalid state to perform operation (most probably not in advertising state).
@@ -1021,6 +1141,18 @@ SD_RPC_API uint32_t sd_ble_gap_adv_stop(adapter_t *adapter);
  *          will be informed of the result with a @ref BLE_GAP_EVT_CONN_PARAM_UPDATE event.
  *
  * @details This function can be used as a central both to reply to a @ref BLE_GAP_EVT_CONN_PARAM_UPDATE_REQUEST or to start the procedure unrequested.
+ *
+ * @events
+ * @event{@ref BLE_GAP_EVT_CONN_PARAM_UPDATE, Result of the connection parameter update procedure.}
+ * @endevents
+ *
+ * @mscs
+ * @mmsc{@ref BLE_GAP_CPU_MSC}
+ * @mmsc{@ref BLE_GAP_CENTRAL_ENC_AUTH_MUTEX_MSC}
+ * @mmsc{@ref BLE_GAP_MULTILINK_CPU_MSC}
+ * @mmsc{@ref BLE_GAP_MULTILINK_CTRL_PROC_MSC}
+ * @mmsc{@ref BLE_GAP_CENTRAL_CPU_MSC}
+ * @endmscs
  *
  * @param[in] conn_handle Connection handle.
  * @param[in] p_conn_params  Pointer to desired connection parameters. If NULL is provided on a peripheral role,
@@ -1043,6 +1175,14 @@ SD_RPC_API uint32_t sd_ble_gap_conn_param_update(adapter_t *adapter, uint16_t co
  * @details This call initiates the disconnection procedure, and its completion will be communicated to the application
  *          with a @ref BLE_GAP_EVT_DISCONNECTED event.
  *
+ * @events
+ * @event{@ref BLE_GAP_EVT_DISCONNECTED, Generated when disconnection procedure is complete.}
+ * @endevents
+ *
+ * @mscs
+ * @mmsc{@ref BLE_GAP_CONN_MSC}
+ * @endmscs
+ *
  * @param[in] conn_handle Connection handle.
  * @param[in] hci_status_code HCI status code, see @ref BLE_HCI_STATUS_CODES (accepted values are @ref BLE_HCI_REMOTE_USER_TERMINATED_CONNECTION and @ref BLE_HCI_CONN_INTERVAL_UNACCEPTABLE).
  *
@@ -1058,7 +1198,8 @@ SD_RPC_API uint32_t sd_ble_gap_disconnect(adapter_t *adapter, uint16_t conn_hand
  *
  * @param[in] tx_power Radio transmit power in dBm (accepted values are -40, -30, -20, -16, -12, -8, -4, 0, and 4 dBm).
  *
- * @note -40 dBm will not actually give -40 dBm, but will instead be remapped to -30 dBm.
+ * @note The -30dBm setting is only available on nRF51 series ICs.
+ * @note The -40dBm setting is only available on nRF52 series ICs.
  *
  * @retval ::NRF_SUCCESS Successfully changed the transmit power.
  * @retval ::NRF_ERROR_INVALID_PARAM Invalid parameter(s) supplied.
@@ -1123,13 +1264,13 @@ SD_RPC_API uint32_t sd_ble_gap_device_name_set(adapter_t *adapter, ble_gap_conn_
 
 /**@brief Get GAP device name.
  *
- * @param[out]    p_dev_name Pointer to an empty buffer where the UTF-8 <b>non NULL-terminated</b> string will be placed. Set to NULL to obtain the complete device name length.
- * @param[in,out] p_len      Length of the buffer pointed by p_dev_name, complete device name length on output.
- *
  * @note          If the device name is longer than the size of the supplied buffer,
  *                p_len will return the complete device name length,
  *                and not the number of bytes actually returned in p_dev_name.
  *                The application may use this information to allocate a suitable buffer size.
+ *
+ * @param[out]    p_dev_name Pointer to an empty buffer where the UTF-8 <b>non NULL-terminated</b> string will be placed. Set to NULL to obtain the complete device name length.
+ * @param[in,out] p_len      Length of the buffer pointed by p_dev_name, complete device name length on output.
  *
  * @retval ::NRF_SUCCESS GAP device name retrieved successfully.
  * @retval ::NRF_ERROR_INVALID_ADDR Invalid pointer supplied.
@@ -1140,65 +1281,137 @@ SD_RPC_API uint32_t sd_ble_gap_device_name_get(adapter_t *adapter, uint8_t *p_de
 
 /**@brief Initiate the GAP Authentication procedure.
  *
- * @param[in] conn_handle Connection handle.
- * @param[in] p_sec_params Pointer to the @ref ble_gap_sec_params_t structure with the security parameters to be used during the pairing or bonding procedure.
- *                         In the peripheral role, only the timeout, bond and mitm fields of this structure are used.
- *                         In the central role, this pointer may be NULL to reject a Security Request.
- *
  * @details In the central role, this function will send an SMP Pairing Request (or an SMP Pairing Failed if rejected),
  *          otherwise in the peripheral role, an SMP Security Request will be sent.
  *
- * @note    Calling this function may result in the following events depending on the outcome and parameters: @ref BLE_GAP_EVT_SEC_PARAMS_REQUEST,
- *          @ref BLE_GAP_EVT_SEC_INFO_REQUEST, @ref BLE_GAP_EVT_AUTH_KEY_REQUEST, @ref BLE_GAP_EVT_CONN_SEC_UPDATE, @ref BLE_GAP_EVT_AUTH_STATUS.
+ * @events
+ * @event{Depending on the security parameters set and the packet exchanges with the peer\, the following events may be generated:}
+ * @event{@ref BLE_GAP_EVT_SEC_PARAMS_REQUEST}
+ * @event{@ref BLE_GAP_EVT_SEC_INFO_REQUEST}
+ * @event{@ref BLE_GAP_EVT_PASSKEY_DISPLAY}
+ * @event{@ref BLE_GAP_EVT_KEY_PRESSED}
+ * @event{@ref BLE_GAP_EVT_AUTH_KEY_REQUEST}
+ * @event{@ref BLE_GAP_EVT_LESC_DHKEY_REQUEST}
+ * @event{@ref BLE_GAP_EVT_CONN_SEC_UPDATE}
+ * @event{@ref BLE_GAP_EVT_AUTH_STATUS}
+ * @event{@ref BLE_GAP_EVT_TIMEOUT}
+ * @endevents
  *
+ * @mscs
+ * @mmsc{@ref BLE_GAP_PERIPH_SEC_REQ_MSC}
+ * @mmsc{@ref BLE_GAP_CENTRAL_SEC_REQ_MSC}
+ * @mmsc{@ref BLE_GAP_CENTRAL_ENC_AUTH_MUTEX_MSC}
+ * @mmsc{@ref BLE_GAP_CENTRAL_PAIRING_JW_MSC}
+ * @mmsc{@ref BLE_GAP_CENTRAL_BONDING_JW_MSC}
+ * @mmsc{@ref BLE_GAP_CENTRAL_BONDING_PK_PERIPH_MSC}
+ * @mmsc{@ref BLE_GAP_CENTRAL_BONDING_PK_PERIPH_OOB_MSC}
+ * @mmsc{@ref BLE_GAP_CENTRAL_LESC_PAIRING_JW_MSC}
+ * @mmsc{@ref BLE_GAP_CENTRAL_LESC_BONDING_NC_MSC}
+ * @mmsc{@ref BLE_GAP_CENTRAL_LESC_BONDING_PKE_PD_MSC}
+ * @mmsc{@ref BLE_GAP_CENTRAL_LESC_BONDING_PKE_CD_MSC}
+ * @mmsc{@ref BLE_GAP_CENTRAL_LESC_BONDING_OOB_MSC}
+ * @endmscs
+ *
+ * @param[in] conn_handle Connection handle.
+ * @param[in] p_sec_params Pointer to the @ref ble_gap_sec_params_t structure with the security parameters to be used during the pairing or bonding procedure.
+ *                         In the peripheral role, only the bond, mitm, lesc and keypress fields of this structure are used.
+ *                         In the central role, this pointer may be NULL to reject a Security Request.
  *
  * @retval ::NRF_SUCCESS Successfully initiated authentication procedure.
  * @retval ::NRF_ERROR_INVALID_ADDR Invalid pointer supplied.
  * @retval ::NRF_ERROR_INVALID_PARAM Invalid parameter(s) supplied.
  * @retval ::NRF_ERROR_INVALID_STATE Invalid state to perform operation.
  * @retval ::NRF_ERROR_BUSY The stack is busy, process pending events and retry.
+ * @retval ::NRF_ERROR_NO_MEM The maximum number of authentication procedures that can run in parallel for the given role is reached.
  * @retval ::BLE_ERROR_INVALID_CONN_HANDLE Invalid connection handle supplied.
- * @retval ::NRF_ERROR_TIMEOUT A SMP timout has occured, and further SMP operations on this link is prohibited.
+ * @retval ::NRF_ERROR_NOT_SUPPORTED Setting of sign or link fields in @ref ble_gap_sec_kdist_t not supported.
+ * @retval ::NRF_ERROR_TIMEOUT A SMP timeout has occurred, and further SMP operations on this link is prohibited.
  */
 SD_RPC_API uint32_t sd_ble_gap_authenticate(adapter_t *adapter, uint16_t conn_handle, ble_gap_sec_params_t const *p_sec_params);
 
 
 /**@brief Reply with GAP security parameters.
  *
+ * @details This function is only used to reply to a @ref BLE_GAP_EVT_SEC_PARAMS_REQUEST, calling it at other times will result in an @ref NRF_ERROR_INVALID_STATE.
+ * @note    If the call returns an error code, the request is still pending, and the reply call may be repeated with corrected parameters.
+ *
+ * @events
+ * @event{This function is used during authentication procedures\, see the list of events in the documentation of @ref sd_ble_gap_authenticate.}
+ * @endevents
+ *
+ * @mscs
+ * @mmsc{@ref BLE_GAP_PERIPH_PAIRING_JW_MSC}
+ * @mmsc{@ref BLE_GAP_PERIPH_BONDING_JW_MSC}
+ * @mmsc{@ref BLE_GAP_PERIPH_BONDING_PK_PERIPH_MSC}
+ * @mmsc{@ref BLE_GAP_PERIPH_BONDING_PK_CENTRAL_OOB_MSC}
+ * @mmsc{@ref BLE_GAP_PERIPH_BONDING_STATIC_PK_MSC}
+ * @mmsc{@ref BLE_GAP_PERIPH_PAIRING_CONFIRM_FAIL_MSC}
+ * @mmsc{@ref BLE_GAP_PERIPH_LESC_PAIRING_JW_MSC}
+ * @mmsc{@ref BLE_GAP_PERIPH_LESC_BONDING_NC_MSC}
+ * @mmsc{@ref BLE_GAP_PERIPH_LESC_BONDING_PKE_PD_MSC}
+ * @mmsc{@ref BLE_GAP_PERIPH_LESC_BONDING_PKE_CD_MSC}
+ * @mmsc{@ref BLE_GAP_PERIPH_LESC_BONDING_OOB_MSC}
+ * @mmsc{@ref BLE_GAP_PERIPH_PAIRING_KS_TOO_SMALL_MSC}
+ * @mmsc{@ref BLE_GAP_PERIPH_PAIRING_APP_ERROR_MSC}
+ * @mmsc{@ref BLE_GAP_PERIPH_PAIRING_REMOTE_PAIRING_FAIL_MSC}
+ * @mmsc{@ref BLE_GAP_PERIPH_PAIRING_TIMEOUT_MSC}
+ * @mmsc{@ref BLE_GAP_CENTRAL_PAIRING_JW_MSC}
+ * @mmsc{@ref BLE_GAP_CENTRAL_BONDING_JW_MSC}
+ * @mmsc{@ref BLE_GAP_CENTRAL_BONDING_PK_PERIPH_MSC}
+ * @mmsc{@ref BLE_GAP_CENTRAL_BONDING_PK_PERIPH_OOB_MSC}
+ * @mmsc{@ref BLE_GAP_CENTRAL_LESC_PAIRING_JW_MSC}
+ * @mmsc{@ref BLE_GAP_CENTRAL_LESC_BONDING_NC_MSC}
+ * @mmsc{@ref BLE_GAP_CENTRAL_LESC_BONDING_PKE_PD_MSC}
+ * @mmsc{@ref BLE_GAP_CENTRAL_LESC_BONDING_PKE_CD_MSC}
+ * @mmsc{@ref BLE_GAP_CENTRAL_LESC_BONDING_OOB_MSC}
+ * @endmscs
+ *
  * @param[in] conn_handle Connection handle.
  * @param[in] sec_status Security status, see @ref BLE_GAP_SEC_STATUS.
  * @param[in] p_sec_params Pointer to a @ref ble_gap_sec_params_t security parameters structure. In the central role this must be set to NULL, as the parameters have
  *                         already been provided during a previous call to @ref sd_ble_gap_authenticate.
- * @param[in,out] p_sec_keyset Pointer to a @ref ble_gap_sec_keyset_t security keyset structure. Any keys distributed as a result of the ongoing security procedure
- *                         will be stored into the memory referenced by the pointers inside this structure. The keys will be stored and available to the application
+ * @param[in,out] p_sec_keyset Pointer to a @ref ble_gap_sec_keyset_t security keyset structure. Any keys generated and/or distributed as a result of the ongoing security procedure 
+ *                         will be stored into the memory referenced by the pointers inside this structure. The keys will be stored and available to the application 
  *                         upon reception of a @ref BLE_GAP_EVT_AUTH_STATUS event.
- *                         The pointer to the ID key data distributed by the <b>local device</b> constitutes however an exception. It can either point to ID key data
- *                         filled in by the user before calling this function, in which case a user-supplied Bluetooth address and IRK will be distributed,
- *                         or the pointer to the ID key data structure can be NULL, in which case the device's configured (or default, if none is configured)
- *                         Bluetooth address and IRK will be distributed.
- *
- * @details This function is only used to reply to a @ref BLE_GAP_EVT_SEC_PARAMS_REQUEST, calling it at other times will result in an @ref NRF_ERROR_INVALID_STATE.
- * @note    If the call returns an error code, the request is still pending, and the reply call may be repeated with corrected parameters.
+ *                         Note that the SoftDevice expects the application to provide memory for storing the
+ *                         peer's keys. So it must be ensured that the relevant pointers inside this structure are not NULL. The pointers to the local key
+ *                         can, however, be NULL, in which case, the local key data will not be available to the application upon reception of the
+ *                         @ref BLE_GAP_EVT_AUTH_STATUS event.
  *
  * @retval ::NRF_SUCCESS Successfully accepted security parameter from the application.
  * @retval ::NRF_ERROR_INVALID_ADDR Invalid pointer supplied.
  * @retval ::NRF_ERROR_INVALID_PARAM Invalid parameter(s) supplied.
  * @retval ::NRF_ERROR_INVALID_STATE Invalid state to perform operation.
  * @retval ::BLE_ERROR_INVALID_CONN_HANDLE Invalid connection handle supplied.
+ * @retval ::NRF_ERROR_NOT_SUPPORTED Setting of sign or link fields in @ref ble_gap_sec_kdist_t not supported.
  */
 SD_RPC_API uint32_t sd_ble_gap_sec_params_reply(adapter_t *adapter, uint16_t conn_handle, uint8_t sec_status, ble_gap_sec_params_t const *p_sec_params, ble_gap_sec_keyset_t const *p_sec_keyset);
 
 
 /**@brief Reply with an authentication key.
  *
+ * @details This function is only used to reply to a @ref BLE_GAP_EVT_AUTH_KEY_REQUEST or a @ref BLE_GAP_EVT_PASSKEY_DISPLAY, calling it at other times will result in an @ref NRF_ERROR_INVALID_STATE.
+ * @note    If the call returns an error code, the request is still pending, and the reply call may be repeated with corrected parameters.
+ *
+ * @events
+ * @event{This function is used during authentication procedures\, see the list of events in the documentation of @ref sd_ble_gap_authenticate.}
+ * @endevents
+ *
+ * @mscs
+ * @mmsc{@ref BLE_GAP_PERIPH_BONDING_PK_CENTRAL_OOB_MSC}
+ * @mmsc{@ref BLE_GAP_PERIPH_LESC_BONDING_NC_MSC}
+ * @mmsc{@ref BLE_GAP_PERIPH_LESC_BONDING_PKE_CD_MSC}
+ * @mmsc{@ref BLE_GAP_CENTRAL_BONDING_PK_PERIPH_OOB_MSC}
+ * @mmsc{@ref BLE_GAP_CENTRAL_LESC_BONDING_NC_MSC}
+ * @mmsc{@ref BLE_GAP_CENTRAL_LESC_BONDING_PKE_CD_MSC}
+ * @endmscs
+ *
  * @param[in] conn_handle Connection handle.
  * @param[in] key_type See @ref BLE_GAP_AUTH_KEY_TYPES.
  * @param[in] p_key If key type is @ref BLE_GAP_AUTH_KEY_TYPE_NONE, then NULL.
- *                If key type is @ref BLE_GAP_AUTH_KEY_TYPE_PASSKEY, then a 6-byte ASCII string (digit 0..9 only, no NULL termination).
- *                If key type is @ref BLE_GAP_AUTH_KEY_TYPE_OOB, then a 16-byte OOB key value in Little Endian format.
- *
- * @details This function is only used to reply to a @ref BLE_GAP_EVT_AUTH_KEY_REQUEST, calling it at other times will result in an @ref NRF_ERROR_INVALID_STATE.
- * @note    If the call returns an error code, the request is still pending, and the reply call may be repeated with corrected parameters.
+ *                  If key type is @ref BLE_GAP_AUTH_KEY_TYPE_PASSKEY, then a 6-byte ASCII string (digit 0..9 only, no NULL termination)
+ *                     or NULL when confirming LE Secure Connections Numeric Comparison.
+ *                  If key type is @ref BLE_GAP_AUTH_KEY_TYPE_OOB, then a 16-byte OOB key value in Little Endian format.
  *
  * @retval ::NRF_SUCCESS Authentication key successfully set.
  * @retval ::NRF_ERROR_INVALID_ADDR Invalid pointer supplied.
@@ -1208,16 +1421,123 @@ SD_RPC_API uint32_t sd_ble_gap_sec_params_reply(adapter_t *adapter, uint16_t con
  */
 SD_RPC_API uint32_t sd_ble_gap_auth_key_reply(adapter_t *adapter, uint16_t conn_handle, uint8_t key_type, uint8_t const *p_key);
 
+/**@brief Reply with an LE Secure connections DHKey.
+ *
+ * @details This function is only used to reply to a @ref BLE_GAP_EVT_LESC_DHKEY_REQUEST, calling it at other times will result in an @ref NRF_ERROR_INVALID_STATE.
+ * @note    If the call returns an error code, the request is still pending, and the reply call may be repeated with corrected parameters.
+ *
+ * @events
+ * @event{This function is used during authentication procedures\, see the list of events in the documentation of @ref sd_ble_gap_authenticate.}
+ * @endevents
+ *
+ * @mscs
+ * @mmsc{@ref BLE_GAP_PERIPH_LESC_PAIRING_JW_MSC}
+ * @mmsc{@ref BLE_GAP_PERIPH_LESC_BONDING_NC_MSC}
+ * @mmsc{@ref BLE_GAP_PERIPH_LESC_BONDING_PKE_PD_MSC}
+ * @mmsc{@ref BLE_GAP_PERIPH_LESC_BONDING_PKE_CD_MSC}
+ * @mmsc{@ref BLE_GAP_PERIPH_LESC_BONDING_OOB_MSC}
+ * @mmsc{@ref BLE_GAP_CENTRAL_LESC_PAIRING_JW_MSC}
+ * @mmsc{@ref BLE_GAP_CENTRAL_LESC_BONDING_NC_MSC}
+ * @mmsc{@ref BLE_GAP_CENTRAL_LESC_BONDING_PKE_PD_MSC}
+ * @mmsc{@ref BLE_GAP_CENTRAL_LESC_BONDING_PKE_CD_MSC}
+ * @mmsc{@ref BLE_GAP_CENTRAL_LESC_BONDING_OOB_MSC}
+ * @endmscs
+ *
+ * @param[in] conn_handle Connection handle.
+ * @param[in] p_dhkey LE Secure Connections DHKey.
+ *
+ * @retval ::NRF_SUCCESS DHKey successfully set.
+ * @retval ::NRF_ERROR_INVALID_ADDR Invalid pointer supplied.
+ * @retval ::NRF_ERROR_INVALID_PARAM Invalid parameter(s) supplied.
+ * @retval ::NRF_ERROR_INVALID_STATE Invalid state to perform operation.
+ * @retval ::BLE_ERROR_INVALID_CONN_HANDLE Invalid connection handle supplied.
+ */
+SD_RPC_API uint32_t sd_ble_gap_lesc_dhkey_reply(adapter_t *adapter, uint16_t conn_handle, ble_gap_lesc_dhkey_t const *p_dhkey);
+
+/**@brief Notify the peer of a local keypress.
+ *
+ * @details This function can only be used when an authentication procedure using LE Secure Connection is in progress. Calling it at other times will result in an @ref NRF_ERROR_INVALID_STATE.
+ *
+ * @mscs
+ * @mmsc{@ref BLE_GAP_PERIPH_LESC_BONDING_PKE_CD_MSC}
+ * @mmsc{@ref BLE_GAP_CENTRAL_LESC_BONDING_PKE_CD_MSC}
+ * @endmscs
+ *
+ * @param[in] conn_handle Connection handle.
+ * @param[in] kp_not See @ref BLE_GAP_KP_NOT_TYPES.
+ *
+ * @retval ::NRF_SUCCESS Keypress notification successfully queued for transmission.
+ * @retval ::NRF_ERROR_INVALID_PARAM Invalid parameter(s) supplied.
+ * @retval ::NRF_ERROR_INVALID_STATE Invalid state to perform operation. Either not entering a passkey or keypresses have not been enabled by both peers.
+ * @retval ::BLE_ERROR_INVALID_CONN_HANDLE Invalid connection handle supplied.
+ * @retval ::NRF_ERROR_BUSY The BLE stack is busy. Retry at later time.
+ */
+SD_RPC_API uint32_t sd_ble_gap_keypress_notify(adapter_t *adapter, uint16_t conn_handle, uint8_t kp_not);
+
+/**@brief Generate a set of OOB data to send to a peer out of band.
+ *
+ * @note The @ref ble_gap_addr_t included in the OOB data returned will be the currently active one (or, if a connection has already been established,
+ *       the one used during connection setup). The application may manually overwrite it with an updated value.
+ *
+ * @mscs
+ * @mmsc{@ref BLE_GAP_PERIPH_LESC_BONDING_OOB_MSC}
+ * @mmsc{@ref BLE_GAP_CENTRAL_LESC_BONDING_OOB_MSC}
+ * @endmscs
+ *
+ * @param[in] conn_handle Connection handle. Can be BLE_CONN_HANDLE_INVALID if a BLE connection has not been established yet.
+ * @param[in] p_pk_own LE Secure Connections local P-256 Public Key.
+ * @param[out] p_oobd_own The OOB data to be sent out of band to a peer.
+ *
+ * @retval ::NRF_SUCCESS OOB data successfully generated.
+ * @retval ::NRF_ERROR_INVALID_ADDR Invalid pointer supplied.
+ * @retval ::BLE_ERROR_INVALID_CONN_HANDLE Invalid connection handle supplied.
+ */
+SD_RPC_API uint32_t sd_ble_gap_lesc_oob_data_get(adapter_t *adapter, uint16_t conn_handle, ble_gap_lesc_p256_pk_t const *p_pk_own, ble_gap_lesc_oob_data_t *p_oobd_own);
+
+/**@brief Provide the OOB data sent/received out of band.
+ *
+ * @note At least one of the 2 pointers provided must be different from NULL.
+ * @note An authentication procedure with OOB selected as an algorithm must be in progress when calling this function.
+ * @note A @ref BLE_GAP_EVT_LESC_DHKEY_REQUEST event with the oobd_req set to 1 must have been received prior to calling this function.
+ *
+ * @events
+ * @event{This function is used during authentication procedures\, see the list of events in the documentation of @ref sd_ble_gap_authenticate.}
+ * @endevents
+ *
+ * @mscs
+ * @mmsc{@ref BLE_GAP_PERIPH_LESC_BONDING_OOB_MSC}
+ * @mmsc{@ref BLE_GAP_CENTRAL_LESC_BONDING_OOB_MSC}
+ * @endmscs
+ *
+ * @param[in] conn_handle Connection handle.
+ * @param[in] p_oobd_own The OOB data sent out of band to a peer or NULL if none sent.
+ * @param[in] p_oobd_peer The OOB data received out of band from a peer or NULL if none received.
+ *
+ * @retval ::NRF_SUCCESS OOB data accepted.
+ * @retval ::NRF_ERROR_INVALID_ADDR Invalid pointer supplied.
+ * @retval ::NRF_ERROR_INVALID_STATE Invalid state to perform operation.
+ * @retval ::BLE_ERROR_INVALID_CONN_HANDLE Invalid connection handle supplied.
+ */
+SD_RPC_API uint32_t sd_ble_gap_lesc_oob_data_set(adapter_t *adapter, uint16_t conn_handle, ble_gap_lesc_oob_data_t const *p_oobd_own, ble_gap_lesc_oob_data_t const *p_oobd_peer);
 
 /**@brief Initiate GAP Encryption procedure.
+ *
+ * @details In the central role, this function will initiate the encryption procedure using the encryption information provided.
+ *
+ * @events
+ * @event{@ref BLE_GAP_EVT_CONN_SEC_UPDATE, The connection security has been updated.}
+ * @endevents
+ *
+ * @mscs
+ * @mmsc{@ref BLE_GAP_CENTRAL_ENC_AUTH_MUTEX_MSC}
+ * @mmsc{@ref BLE_GAP_CENTRAL_ENC_MSC}
+ * @mmsc{@ref BLE_GAP_MULTILINK_CTRL_PROC_MSC}
+ * @mmsc{@ref BLE_GAP_CENTRAL_SEC_REQ_MSC}
+ * @endmscs
  *
  * @param[in] conn_handle Connection handle.
  * @param[in] p_master_id Pointer to a @ref ble_gap_master_id_t master identification structure.
  * @param[in] p_enc_info  Pointer to a @ref ble_gap_enc_info_t encryption information structure.
- *
- * @details In the central role, this function will initiate the encryption procedure using the encryption information provided.
- *
- * @note    Calling this function may result in the following event depending on the outcome and parameters: @ref BLE_GAP_EVT_CONN_SEC_UPDATE.
  *
  * @retval ::NRF_SUCCESS Successfully initiated authentication procedure.
  * @retval ::NRF_ERROR_INVALID_ADDR Invalid pointer supplied.
@@ -1231,14 +1551,18 @@ SD_RPC_API uint32_t sd_ble_gap_encrypt(adapter_t *adapter, uint16_t conn_handle,
 
 /**@brief Reply with GAP security information.
  *
+ * @details This function is only used to reply to a @ref BLE_GAP_EVT_SEC_INFO_REQUEST, calling it at other times will result in @ref NRF_ERROR_INVALID_STATE.
+ * @note    If the call returns an error code, the request is still pending, and the reply call may be repeated with corrected parameters.
+ * @note    Data signing is not yet supported, and p_sign_info must therefore be NULL.
+ *
+ * @mscs
+ * @mmsc{@ref BLE_GAP_PERIPH_ENC_MSC}
+ * @endmscs
+ *
  * @param[in] conn_handle Connection handle.
  * @param[in] p_enc_info Pointer to a @ref ble_gap_enc_info_t encryption information structure. May be NULL to signal none is available.
  * @param[in] p_id_info Pointer to a @ref ble_gap_irk_t identity information structure. May be NULL to signal none is available.
  * @param[in] p_sign_info Pointer to a @ref ble_gap_sign_info_t signing information structure. May be NULL to signal none is available.
- *
- * @details This function is only used to reply to a @ref BLE_GAP_EVT_SEC_INFO_REQUEST, calling it at other times will result in @ref NRF_ERROR_INVALID_STATE.
- * @note    If the call returns an error code, the request is still pending, and the reply call may be repeated with corrected parameters.
- * @note    Data signing is not yet supported, and p_sign_info must therefore be NULL.
  *
  * @retval ::NRF_SUCCESS Successfully accepted security information.
  * @retval ::NRF_ERROR_INVALID_PARAM Invalid parameter(s) supplied.
@@ -1264,6 +1588,17 @@ SD_RPC_API uint32_t sd_ble_gap_conn_sec_get(adapter_t *adapter, uint16_t conn_ha
  *
  * A new event is reported whenever the RSSI value changes, until @ref sd_ble_gap_rssi_stop is called.
  *
+ * @events
+ * @event{@ref BLE_GAP_EVT_RSSI_CHANGED, New RSSI data available. How often the event is generated is
+                                         dependent on the settings of the <code>threshold_dbm</code>
+                                         and <code>skip_count</code> input parameters.}
+ * @endevents
+ *
+ * @mscs
+ * @mmsc{@ref BLE_GAP_CENTRAL_RSSI_READ_MSC}
+ * @mmsc{@ref BLE_GAP_RSSI_FILT_MSC}
+ * @endmscs
+ *
  * @param[in] conn_handle        Connection handle.
  * @param[in] threshold_dbm      Minimum change in dBm before triggering the @ref BLE_GAP_EVT_RSSI_CHANGED event. Events are disabled if threshold_dbm equals @ref BLE_GAP_RSSI_THRESHOLD_INVALID.
  * @param[in] skip_count         Number of RSSI samples with a change of threshold_dbm or more before sending a new @ref BLE_GAP_EVT_RSSI_CHANGED event.
@@ -1280,6 +1615,11 @@ SD_RPC_API uint32_t sd_ble_gap_rssi_start(adapter_t *adapter, uint16_t conn_hand
  * @note An RSSI change detected before the call but not yet received by the application
  * may be reported after @ref sd_ble_gap_rssi_stop has been called.
  *
+ * @mscs
+ * @mmsc{@ref BLE_GAP_CENTRAL_RSSI_READ_MSC}
+ * @mmsc{@ref BLE_GAP_RSSI_FILT_MSC}
+ * @endmscs
+ *
  * @param[in] conn_handle Connection handle.
  *
  * @retval ::NRF_SUCCESS                   Successfully deactivated RSSI reporting.
@@ -1291,11 +1631,15 @@ SD_RPC_API uint32_t sd_ble_gap_rssi_stop(adapter_t *adapter, uint16_t conn_handl
 
 /**@brief Get the received signal strength for the last connection event.
  *
- * @param[in]  conn_handle Connection handle.
- * @param[out] p_rssi      Pointer to the location where the RSSI measurement shall be stored.
- *
  * @ref sd_ble_gap_rssi_start must be called to start reporting RSSI before using this function. @ref NRF_ERROR_NOT_FOUND
  * will be returned until RSSI was sampled for the first time after calling @ref sd_ble_gap_rssi_start.
+ *
+ * @mscs
+ * @mmsc{@ref BLE_GAP_CENTRAL_RSSI_READ_MSC}
+ * @endmscs
+ *
+ * @param[in]  conn_handle Connection handle.
+ * @param[out] p_rssi      Pointer to the location where the RSSI measurement shall be stored.
  *
  * @retval ::NRF_SUCCESS                   Successfully read the RSSI.
  * @retval ::NRF_ERROR_NOT_FOUND           No sample is available.
@@ -1310,6 +1654,16 @@ SD_RPC_API uint32_t sd_ble_gap_rssi_get(adapter_t *adapter, uint16_t conn_handle
  *
  * @note To use the currently active whitelist set p_scan_params->p_whitelist to NULL.
  *
+ * @events
+ * @event{@ref BLE_GAP_EVT_ADV_REPORT, An advertising or scan response packet has been received.}
+ * @event{@ref BLE_GAP_EVT_TIMEOUT, Scanner has timed out.}
+ * @endevents
+ *
+ * @mscs
+ * @mmsc{@ref BLE_GAP_SCAN_MSC}
+ * @mmsc{@ref BLE_GAP_WL_SHARE_MSC}
+ * @endmscs
+ *
  * @param[in] p_scan_params Pointer to scan parameters structure.
  *
  * @retval ::NRF_SUCCESS Successfully initiated scanning procedure.
@@ -1318,11 +1672,18 @@ SD_RPC_API uint32_t sd_ble_gap_rssi_get(adapter_t *adapter, uint16_t conn_handle
  * @retval ::NRF_ERROR_INVALID_PARAM Invalid parameter(s) supplied.
  * @retval ::NRF_ERROR_BUSY The stack is busy, process pending events and retry.
  * @retval ::BLE_ERROR_GAP_WHITELIST_IN_USE Unable to replace the whitelist while another operation is using it.
+ * @retval ::NRF_ERROR_RESOURCES Not enough BLE role slots available.
+ *                               Stop one or more currently active roles (Central, Peripheral or Broadcaster) and try again
  */
 SD_RPC_API uint32_t sd_ble_gap_scan_start(adapter_t *adapter, ble_gap_scan_params_t const *p_scan_params);
 
 
 /**@brief Stop scanning (GAP Discovery procedure, Observer Procedure).
+ *
+ * @mscs
+ * @mmsc{@ref BLE_GAP_SCAN_MSC}
+ * @mmsc{@ref BLE_GAP_WL_SHARE_MSC}
+ * @endmscs
  *
  * @retval ::NRF_SUCCESS Successfully stopped scanning procedure.
  * @retval ::NRF_ERROR_INVALID_STATE Invalid state to perform operation (most probably not in scanning state).
@@ -1333,6 +1694,12 @@ SD_RPC_API uint32_t sd_ble_gap_scan_stop(adapter_t *adapter);
 /**@brief Create a connection (GAP Link Establishment).
  *
  * @note To use the currently active whitelist set p_scan_params->p_whitelist to NULL.
+ * @note If a scanning procedure is currently in progress it will be automatically stopped when calling this function.
+ *
+ * @mscs
+ * @mmsc{@ref BLE_GAP_WL_SHARE_MSC}
+ * @mmsc{@ref BLE_GAP_CENTRAL_CONN_MSC}
+ * @endmscs
  *
  * @param[in] p_peer_addr   Pointer to peer address. If the selective bit is set in @ref ble_gap_scan_params_t, then this must be NULL.
  * @param[in] p_scan_params Pointer to scan parameters structure.
@@ -1343,15 +1710,23 @@ SD_RPC_API uint32_t sd_ble_gap_scan_stop(adapter_t *adapter);
  * @retval ::NRF_ERROR_INVALID_PARAM Invalid parameter(s) supplied.
  * @retval ::NRF_ERROR_INVALID_STATE Invalid state to perform operation.
  * @retval ::BLE_ERROR_GAP_INVALID_BLE_ADDR Invalid Peer address.
- * @retval ::NRF_ERROR_NO_MEM limit of available connections reached.
- * @retval ::NRF_ERROR_BUSY The stack is busy, process pending events and retry. If another connection is being established wait for the corresponding
- *                          @ref BLE_GAP_EVT_CONNECTED event before calling again.
+ * @retval ::NRF_ERROR_CONN_COUNT The limit of available connections has been reached.
+ * @retval ::NRF_ERROR_NO_MEM The configured memory pool (see @ref ble_conn_bw_counts_t) is not large enough for the
+ *                            bandwidth selected for this connection.
+ * @retval ::NRF_ERROR_BUSY The stack is busy, process pending events and retry. If another connection is being established
+ *                          wait for the corresponding @ref BLE_GAP_EVT_CONNECTED event before calling again.
  * @retval ::BLE_ERROR_GAP_WHITELIST_IN_USE Unable to replace the whitelist while another operation is using it.
+ * @retval ::NRF_ERROR_RESOURCES Not enough BLE role slots available.
+ *                               Stop one or more currently active roles (Central, Peripheral or Broadcaster) and try again
  */
 SD_RPC_API uint32_t sd_ble_gap_connect(adapter_t *adapter, ble_gap_addr_t const *p_peer_addr, ble_gap_scan_params_t const *p_scan_params, ble_gap_conn_params_t const *p_conn_params);
 
 
 /**@brief Cancel a connection establishment.
+ *
+ * @mscs
+ * @mmsc{@ref BLE_GAP_CENTRAL_CONN_MSC}
+ * @endmscs
  *
  * @retval ::NRF_SUCCESS Successfully cancelled an ongoing connection procedure.
  * @retval ::NRF_ERROR_INVALID_STATE Invalid state to perform operation.
@@ -1360,6 +1735,9 @@ SD_RPC_API uint32_t sd_ble_gap_connect_cancel(adapter_t *adapter);
 
 /** @} */
 
+#ifdef __cplusplus
+}
+#endif
 #endif // BLE_GAP_H__
 
 /**

@@ -24,6 +24,7 @@
 #include "driver_gatt.h"
 #include "driver_gattc.h"
 #include "driver_gatts.h"
+#include "driver_uecc.h"
 
 using namespace std;
 
@@ -32,51 +33,51 @@ Adapter *adapterBeingOpened = nullptr;
 
 // Macro for keeping sanity in event switch case below
 #define COMMON_EVT_CASE(evt_enum, evt_to_js, params_name, event_array, event_array_idx, eventEntry) \
-    case BLE_EVT_##evt_enum:                                                                                        \
-    {                                                                                                                   \
-        ble_common_evt_t common_event = eventEntry->event->evt.common_evt;                                                      \
-        std::string timestamp = eventEntry->timestamp;                                                                 \
-        v8::Local<v8::Value> js_event =                                                                                 \
-            Common##evt_to_js##Event(timestamp, common_event.conn_handle, &(common_event.params.params_name)).ToJs();                   \
-        Nan::Set(event_array, event_array_idx, js_event);                                               \
-        break;                                                                                                          \
+    case BLE_EVT_##evt_enum:                                                                                         \
+    {                                                                                                                \
+        ble_common_evt_t common_event = eventEntry->event->evt.common_evt;                                           \
+        std::string timestamp = eventEntry->timestamp;                                                               \
+        v8::Local<v8::Value> js_event =                                                                              \
+            Common##evt_to_js##Event(timestamp, common_event.conn_handle, &(common_event.params.params_name)).ToJs();\
+        Nan::Set(event_array, event_array_idx, js_event);                                                            \
+        break;                                                                                                       \
     }
 
 
 // Macro for keeping sanity in event switch case below
 #define GAP_EVT_CASE(evt_enum, evt_to_js, params_name, event_array, event_array_idx, eventEntry) \
-    case BLE_GAP_EVT_##evt_enum:                                                                                        \
-    {                                                                                                                   \
-        ble_gap_evt_t gap_event = eventEntry->event->evt.gap_evt;                                                      \
-        std::string timestamp = eventEntry->timestamp;                                                                 \
-        v8::Local<v8::Object> js_event =                                                                                 \
-            Gap##evt_to_js(timestamp, gap_event.conn_handle, &(gap_event.params.params_name)).ToJs();                   \
-        Nan::Set(event_array, event_array_idx, js_event);                                               \
-        break;                                                                                                          \
+    case BLE_GAP_EVT_##evt_enum:                                                                                     \
+    {                                                                                                                \
+        ble_gap_evt_t gap_event = eventEntry->event->evt.gap_evt;                                                    \
+        std::string timestamp = eventEntry->timestamp;                                                               \
+        v8::Local<v8::Object> js_event =                                                                             \
+            Gap##evt_to_js(timestamp, gap_event.conn_handle, &(gap_event.params.params_name)).ToJs();                \
+        Nan::Set(event_array, event_array_idx, js_event);                                                            \
+        break;                                                                                                       \
     }
 
 // Macro for keeping sanity in event switch case below
 #define GATTC_EVT_CASE(evt_enum, evt_to_js, params_name, event_array, event_array_idx, eventEntry) \
-    case BLE_GATTC_EVT_##evt_enum:                                                                                        \
-    {                                                                                                                   \
-        ble_gattc_evt_t *gattc_event = &(eventEntry->event->evt.gattc_evt);                                                      \
-        std::string timestamp = eventEntry->timestamp;                                                                 \
-        v8::Local<v8::Value> js_event =                                                                                 \
-            Gattc##evt_to_js##Event(timestamp, gattc_event->conn_handle, gattc_event->gatt_status, gattc_event->error_handle, &(gattc_event->params.params_name)).ToJs();                   \
-        Nan::Set(event_array, event_array_idx, js_event);                                               \
-        break;                                                                                                          \
+    case BLE_GATTC_EVT_##evt_enum:                                                                                   \
+    {                                                                                                                \
+        ble_gattc_evt_t *gattc_event = &(eventEntry->event->evt.gattc_evt);                                          \
+        std::string timestamp = eventEntry->timestamp;                                                               \
+        v8::Local<v8::Value> js_event =                                                                              \
+            Gattc##evt_to_js##Event(timestamp, gattc_event->conn_handle, gattc_event->gatt_status, gattc_event->error_handle, &(gattc_event->params.params_name)).ToJs(); \
+        Nan::Set(event_array, event_array_idx, js_event);                                                            \
+        break;                                                                                                       \
     }
 
 // Macro for keeping sanity in event switch case below
-#define GATTS_EVT_CASE(evt_enum, evt_to_js, params_name, event_array, event_array_idx, eventEntry) \
-    case BLE_GATTS_EVT_##evt_enum:                                                                                        \
-    {                                                                                                                   \
-        ble_gatts_evt_t *gatts_event = &(eventEntry->event->evt.gatts_evt);                                                      \
-        std::string timestamp = eventEntry->timestamp;                                                                 \
-        v8::Local<v8::Value> js_event =                                                                                 \
-            Gatts##evt_to_js##Event(timestamp, gatts_event->conn_handle, &(gatts_event->params.params_name)).ToJs();                   \
-        Nan::Set(event_array, event_array_idx, js_event);                                               \
-        break;                                                                                                          \
+#define GATTS_EVT_CASE(evt_enum, evt_to_js, params_name, event_array, event_array_idx, eventEntry)                   \
+    case BLE_GATTS_EVT_##evt_enum:                                                                                   \
+    {                                                                                                                \
+        ble_gatts_evt_t *gatts_event = &(eventEntry->event->evt.gatts_evt);                                          \
+        std::string timestamp = eventEntry->timestamp;                                                               \
+        v8::Local<v8::Value> js_event =                                                                              \
+            Gatts##evt_to_js##Event(timestamp, gatts_event->conn_handle, &(gatts_event->params.params_name)).ToJs(); \
+        Nan::Set(event_array, event_array_idx, js_event);                                                            \
+        break;                                                                                                       \
     }
 
 static name_map_t uuid_type_name_map = {
@@ -100,6 +101,7 @@ void sd_rpc_on_log_event(adapter_t *adapter, sd_rpc_log_severity_t severity, con
     }
     else
     {
+        std::cerr << "No AddOn adapter to process log event." << std::endl;
         std::terminate();
     }
 }
@@ -108,9 +110,14 @@ void Adapter::appendLog(LogEntry *log)
 {
     logQueue.push(log);
 
-    if (!closing)
+    if (asyncLog != nullptr)
     {
-        uv_async_send(&asyncLog);
+        uv_async_send(asyncLog);
+    }
+    else 
+    { 
+        std::cerr << "Adapter::appendLog() asyncLog is nullptr!" << std::endl; 
+        std::terminate();
     }
 }
 
@@ -131,6 +138,10 @@ void Adapter::onLogEvent(uv_async_t *handle)
             argv[1] = ConversionUtility::toJsString(logEntry->message);
             logCallback->Call(2, argv);
         }
+        else 
+        {
+            std::cerr << "Log event received, but no callback is registered." << std::endl;
+        }
 
         // Free memory for current entry, we remove the element from the deque when the iteration is done
         delete logEntry;
@@ -141,9 +152,14 @@ void Adapter::onLogEvent(uv_async_t *handle)
 void Adapter::dispatchEvents()
 {
     // Trigger callback in NodeJS thread to call NodeJS callbacks
-    if (!closing)
+    if (asyncEvent != nullptr)
     {
-        uv_async_send(&asyncEvent);
+        uv_async_send(asyncEvent);
+    } 
+    else
+    {
+        std::cerr << "Adapter::dispatchEvents() asyncEvent is nullptr!" << std::endl;
+        std::terminate();
     }
 }
 
@@ -154,7 +170,6 @@ void Adapter::eventIntervalCallback(uv_timer_t *handle)
 
 static void sd_rpc_on_event(adapter_t *adapter, ble_evt_t *event)
 {
-    // TODO: Clarification:
     // The lifecycle for the event is controlled by the driver. We must not free any memory related to the incoming event.
 
     if (event == nullptr)
@@ -170,8 +185,8 @@ static void sd_rpc_on_event(adapter_t *adapter, ble_evt_t *event)
     }
     else
     {
+        std::cerr << "No AddOn adapter to process BLE event." << std::endl;
         std::terminate();
-        //TODO: Return error
     }
 }
 
@@ -222,10 +237,17 @@ void Adapter::onRpcEvent(uv_async_t *handle)
     {
         EventEntry *eventEntry = nullptr;
         eventQueue.pop(eventEntry);
-        assert(eventEntry != nullptr);
+
+        if (eventEntry == nullptr) {
+            std::cerr << "eventEntry from queue is null. Illegal state, terminating." << std::endl;
+            std::terminate();
+        }
 
         auto event = eventEntry->event;
-        assert(event != nullptr);
+        if (eventEntry == nullptr) {
+            std::cerr << "event from eventEntry is null. Illegal state, terminating." << std::endl;
+            std::terminate();
+        }
 
         if (eventCallback != nullptr)
         {
@@ -237,16 +259,21 @@ void Adapter::onRpcEvent(uv_async_t *handle)
 
                 GAP_EVT_CASE(CONNECTED,                 Connected,              connected,                  array, arrayIndex, eventEntry);
                 GAP_EVT_CASE(DISCONNECTED,              Disconnected,           disconnected,               array, arrayIndex, eventEntry);
-                GAP_EVT_CASE(ADV_REPORT,                AdvReport,              adv_report,                 array, arrayIndex, eventEntry);
-                GAP_EVT_CASE(SCAN_REQ_REPORT,           ScanReqReport,          scan_req_report,            array, arrayIndex, eventEntry);
-                GAP_EVT_CASE(TIMEOUT,                   Timeout,                timeout,                    array, arrayIndex, eventEntry);
-                GAP_EVT_CASE(AUTH_STATUS,               AuthStatus,             auth_status,                array, arrayIndex, eventEntry);
                 GAP_EVT_CASE(CONN_PARAM_UPDATE,         ConnParamUpdate,        conn_param_update,          array, arrayIndex, eventEntry);
-                GAP_EVT_CASE(CONN_PARAM_UPDATE_REQUEST, ConnParamUpdateRequest, conn_param_update_request,  array, arrayIndex, eventEntry);
                 GAP_EVT_CASE(SEC_PARAMS_REQUEST,        SecParamsRequest,       sec_params_request,         array, arrayIndex, eventEntry);
-                GAP_EVT_CASE(CONN_SEC_UPDATE,           ConnSecUpdate,          conn_sec_update,            array, arrayIndex, eventEntry);
                 GAP_EVT_CASE(SEC_INFO_REQUEST,          SecInfoRequest,         sec_info_request,           array, arrayIndex, eventEntry);
+                GAP_EVT_CASE(PASSKEY_DISPLAY,           PasskeyDisplay,         passkey_display,            array, arrayIndex, eventEntry);
+                GAP_EVT_CASE(KEY_PRESSED,               KeyPressed,             key_pressed,                array, arrayIndex, eventEntry);
+                GAP_EVT_CASE(AUTH_KEY_REQUEST,          AuthKeyRequest,         auth_key_request,           array, arrayIndex, eventEntry);
+                GAP_EVT_CASE(LESC_DHKEY_REQUEST,        LESCDHKeyRequest,       lesc_dhkey_request,         array, arrayIndex, eventEntry);
+                GAP_EVT_CASE(AUTH_STATUS,               AuthStatus,             auth_status,                array, arrayIndex, eventEntry);
+                GAP_EVT_CASE(CONN_SEC_UPDATE,           ConnSecUpdate,          conn_sec_update,            array, arrayIndex, eventEntry);
+                GAP_EVT_CASE(TIMEOUT,                   Timeout,                timeout,                    array, arrayIndex, eventEntry);
+                GAP_EVT_CASE(RSSI_CHANGED,              RssiChanged,            rssi_changed,               array, arrayIndex, eventEntry);
+                GAP_EVT_CASE(ADV_REPORT,                AdvReport,              adv_report,                 array, arrayIndex, eventEntry);
                 GAP_EVT_CASE(SEC_REQUEST,               SecRequest,             sec_request,                array, arrayIndex, eventEntry);
+                GAP_EVT_CASE(CONN_PARAM_UPDATE_REQUEST, ConnParamUpdateRequest, conn_param_update_request,  array, arrayIndex, eventEntry);
+                GAP_EVT_CASE(SCAN_REQ_REPORT,           ScanReqReport,          scan_req_report,            array, arrayIndex, eventEntry);
 
                 GATTC_EVT_CASE(PRIM_SRVC_DISC_RSP,          PrimaryServiceDiscovery,       prim_srvc_disc_rsp,         array, arrayIndex, eventEntry);
                 GATTC_EVT_CASE(REL_DISC_RSP,                RelationshipDiscovery,         rel_disc_rsp,               array, arrayIndex, eventEntry);
@@ -269,11 +296,30 @@ void Adapter::onRpcEvent(uv_async_t *handle)
                 GATTS_EVT_CASE(SC_CONFIRM, SCConfirm, timeout, array, arrayIndex, eventEntry);
 
             default:
-                std::cout << "Event " << event->header.evt_id << " unknown to me." << std::endl;
+                std::cerr << "Event " << event->header.evt_id << " unknown to me." << std::endl;
                 break;
             }
-        }
 
+            //Special extra handling of some events:
+            if (event->header.evt_id == BLE_GAP_EVT_AUTH_STATUS)
+            {
+                auto keyset = getSecurityKey(event->evt.gap_evt.conn_handle);
+
+                v8::Local<v8::Object> obj = Utility::Get(array, arrayIndex)->ToObject();
+
+                if (keyset != 0)
+                {
+                    Utility::Set(obj, "keyset", static_cast<v8::Handle<v8::Value>>(GapSecKeyset(keyset)));
+                }
+                else
+                {
+                    Utility::Set(obj, "keyset", Nan::Null());
+                }
+
+                destroySecurityKeyStorage(event->evt.gap_evt.conn_handle);
+            }
+        }
+                                       
         arrayIndex++;
 
         // Free memory for current entry
@@ -289,6 +335,10 @@ void Adapter::onRpcEvent(uv_async_t *handle)
     if (eventCallback != nullptr)
     {
         eventCallback->Call(1, callback_value);
+    }
+    else
+    {
+        std::cerr << "BLE event received, but no callback is registered." << std::endl;
     }
 
     auto end = chrono::high_resolution_clock::now();
@@ -312,8 +362,8 @@ static void sd_rpc_on_status(adapter_t *adapter, sd_rpc_app_status_t id, const c
     }
     else
     {
+        std::cerr << "No AddOn adapter to process BLE status event." << std::endl;
         std::terminate();
-        //TODO: Return error
     }
 }
 
@@ -321,9 +371,14 @@ void Adapter::appendStatus(StatusEntry *status)
 {
     statusQueue.push(status);
 
-    if (!closing)
+    if (asyncStatus != nullptr)
     {
-        uv_async_send(&asyncStatus);
+        uv_async_send(asyncStatus);
+    }
+    else
+    {
+        std::cerr << "Adapter::appendStatus() asyncStatus is nullptr." << std::endl;
+        std::terminate();
     }
 }
 
@@ -340,7 +395,7 @@ void Adapter::onStatusEvent(uv_async_t *handle)
         if (statusCallback != nullptr)
         {
             v8::Local<v8::Value> argv[1];
-            argv[0] = StatusMessage::getStatus(statusEntry->id, statusEntry->message.c_str(), statusEntry->timestamp.c_str());
+            argv[0] = StatusMessage::getStatus(statusEntry->id, statusEntry->message, statusEntry->timestamp);
             statusCallback->Call(1, argv);
         }
 
@@ -352,7 +407,7 @@ void Adapter::onStatusEvent(uv_async_t *handle)
 v8::Local<v8::Object> CommonTXCompleteEvent::ToJs()
 {
     Nan::EscapableHandleScope scope;
-    auto obj = Nan::New<v8::Object>();
+    v8::Local<v8::Object> obj = Nan::New<v8::Object>();
     BleDriverCommonEvent::ToJs(obj);
 
     Utility::Set(obj, "count", ConversionUtility::toJsNumber(evt->count));
@@ -363,7 +418,7 @@ v8::Local<v8::Object> CommonTXCompleteEvent::ToJs()
 v8::Local<v8::Object> CommonMemRequestEvent::ToJs()
 {
     Nan::EscapableHandleScope scope;
-    auto obj = Nan::New<v8::Object>();
+    v8::Local<v8::Object> obj = Nan::New<v8::Object>();
     BleDriverCommonEvent::ToJs(obj);
 
     Utility::Set(obj, "type", ConversionUtility::toJsNumber(evt->type));
@@ -400,31 +455,58 @@ uint32_t Adapter::enableBLE(adapter_t *adapter)
 
     memset(&ble_enable_params, 0, sizeof(ble_enable_params));
 
-    ble_enable_params.gatts_enable_params.attr_tab_size = BLE_GATTS_ATTR_TAB_SIZE_DEFAULT;
+    /* set the number of Vendor Specific UUIDs to 5 */
+    ble_enable_params.common_enable_params.vs_uuid_count = 5;
+    /* this application requires 1 connection as a peripheral */
+    ble_enable_params.gap_enable_params.periph_conn_count = 1;
+    /* this application requires 3 connections as a central */
+    ble_enable_params.gap_enable_params.central_conn_count = 3;
+    /* this application only needs to be able to pair in one central link at a time */
+    ble_enable_params.gap_enable_params.central_sec_count = 1;
+    /* we require the Service Changed characteristic */
     ble_enable_params.gatts_enable_params.service_changed = false;
+    /* the default Attribute Table size is appropriate for our application */
+    ble_enable_params.gatts_enable_params.attr_tab_size = BLE_GATTS_ATTR_TAB_SIZE_DEFAULT;
 
-    return sd_ble_enable(adapter, &ble_enable_params);
+    return sd_ble_enable(adapter, &ble_enable_params, 0);
 }
 
 // This function runs in the Main Thread
 NAN_METHOD(Adapter::EnableBLE)
 {
     auto obj = Nan::ObjectWrap::Unwrap<Adapter>(info.Holder());
+    v8::Local<v8::Object> enableObject;
     v8::Local<v8::Function> callback;
+    auto argumentcount = 0;
 
     try
     {
-        callback = ConversionUtility::getCallbackFunction(info[0]);
+        enableObject = ConversionUtility::getJsObject(info[argumentcount]);
+        argumentcount++;
+
+        callback = ConversionUtility::getCallbackFunction(info[argumentcount]);
+        argumentcount++;
     }
-    catch (char const *error)
+    catch (std::string error)
     {
-        auto message = ErrorMessage::getTypeErrorMessage(0, error);
+        auto message = ErrorMessage::getTypeErrorMessage(argumentcount, error);
         Nan::ThrowTypeError(message);
         return;
     }
 
     auto baton = new EnableBLEBaton(callback);
-    baton->mainObject = obj;
+    baton->adapter = obj->adapter;
+
+    try
+    {
+        baton->enable_params = EnableParameters(enableObject);
+    }
+    catch (std::string error)
+    {
+        v8::Local<v8::String> message = ErrorMessage::getStructErrorMessage("enable parameters", error);
+        Nan::ThrowTypeError(message);
+        return;
+    }
 
     uv_queue_work(uv_default_loop(), baton->req, EnableBLE, reinterpret_cast<uv_after_work_cb>(AfterEnableBLE));
 }
@@ -433,7 +515,7 @@ NAN_METHOD(Adapter::EnableBLE)
 void Adapter::EnableBLE(uv_work_t *req)
 {
     auto baton = static_cast<EnableBLEBaton *>(req->data);
-    baton->result = baton->mainObject->enableBLE(baton->mainObject->adapter);
+    baton->result = sd_ble_enable(baton->adapter, baton->enable_params, &baton->app_ram_base);
 }
 
 // This runs in  Main Thread
@@ -442,18 +524,23 @@ void Adapter::AfterEnableBLE(uv_work_t *req)
     Nan::HandleScope scope;
     auto baton = static_cast<EnableBLEBaton *>(req->data);
 
-    v8::Local<v8::Value> argv[1];
+    v8::Local<v8::Value> argv[3];
 
     if (baton->result != NRF_SUCCESS)
     {
         argv[0] = ErrorMessage::getErrorMessage(baton->result, "enabling SoftDevice");
+        argv[1] = Nan::Undefined();
+        argv[2] = Nan::Undefined();
     }
     else
     {
         argv[0] = Nan::Undefined();
+        argv[1] = EnableParameters(baton->enable_params);
+        argv[2] = ConversionUtility::toJsNumber(baton->app_ram_base);
     }
 
-    baton->callback->Call(1, argv);
+    baton->callback->Call(3, argv);
+    delete baton->enable_params;
     delete baton;
 }
 
@@ -478,7 +565,7 @@ NAN_METHOD(Adapter::Open)
         callback = ConversionUtility::getCallbackFunction(info[argumentcount]);
         argumentcount++;
     }
-    catch (char const *error)
+    catch (std::string error)
     {
         v8::Local<v8::String> message = ErrorMessage::getTypeErrorMessage(argumentcount, error);
         Nan::ThrowTypeError(message);
@@ -500,13 +587,13 @@ NAN_METHOD(Adapter::Open)
         baton->log_level = ToLogSeverityEnum(Utility::Get(options, "logLevel")->ToString()); parameter++;
         baton->retransmission_interval = ConversionUtility::getNativeUint32(options, "retransmissionInterval"); parameter++;
         baton->response_timeout = ConversionUtility::getNativeUint32(options, "responseTimeout"); parameter++;
-        baton->enable_ble = ConversionUtility::getNativeBool(options, "enableBLE") != 0; parameter++;
+        baton->enable_ble = ConversionUtility::getBool(options, "enableBLE"); parameter++;
     }
-    catch (char const *error)
+    catch (std::string error)
     {
         std::stringstream errormessage;
         errormessage << "A setup option was wrong. Option: ";
-        const char *_options[] = { "baudrate", "parity", "flowcontrol", "eventInterval", "logLevel" };
+        const char *_options[] = { "baudrate", "parity", "flowcontrol", "eventInterval", "logLevel", "retransmissionInterval", "responseTimeout", "enableBLE" };
         errormessage << _options[parameter] << ". Reason: " << error;
         Nan::ThrowTypeError(errormessage.str().c_str());
         return;
@@ -516,7 +603,7 @@ NAN_METHOD(Adapter::Open)
     {
         baton->log_callback = new Nan::Callback(ConversionUtility::getCallbackFunction(options, "logCallback"));
     }
-    catch (char const *error)
+    catch (std::string error)
     {
         auto message = ErrorMessage::getStructErrorMessage("logCallback", error);
         Nan::ThrowTypeError(message);
@@ -527,7 +614,7 @@ NAN_METHOD(Adapter::Open)
     {
         baton->event_callback = new Nan::Callback(ConversionUtility::getCallbackFunction(options, "eventCallback"));
     }
-    catch (char const *error)
+    catch (std::string error)
     {
         auto message = ErrorMessage::getStructErrorMessage("eventCallback", error);
         Nan::ThrowTypeError(message);
@@ -538,7 +625,7 @@ NAN_METHOD(Adapter::Open)
     {
         baton->status_callback = new Nan::Callback(ConversionUtility::getCallbackFunction(options, "statusCallback"));
     }
-    catch (char const *error)
+    catch (std::string error)
     {
         auto message = ErrorMessage::getStructErrorMessage("statusCallback", error);
         Nan::ThrowTypeError(message);
@@ -552,6 +639,12 @@ NAN_METHOD(Adapter::Open)
 void Adapter::Open(uv_work_t *req)
 {
     auto baton = static_cast<OpenBaton *>(req->data);
+
+    baton->mainObject->eventIntervalTimer = new uv_timer_t();
+
+    baton->mainObject->asyncEvent = new uv_async_t();
+    baton->mainObject->asyncLog = new uv_async_t();
+    baton->mainObject->asyncStatus = new uv_async_t();
 
     baton->mainObject->initEventHandling(baton->event_callback, baton->evt_interval);
     baton->mainObject->initLogHandling(baton->log_callback);
@@ -571,7 +664,7 @@ void Adapter::Open(uv_work_t *req)
     baton->adapter = adapter;
     baton->mainObject->adapter = adapter;
 
-    // Clear the statiscits
+    // Clear the statistics
     baton->mainObject->eventCallbackCount = 0;
 
     // Max number of events in queue before sending it to JavaScript
@@ -587,13 +680,14 @@ void Adapter::Open(uv_work_t *req)
 
     if (error_code != NRF_SUCCESS)
     {
-        printf("Failed to open the nRF51 ble driver.\n"); fflush(stdout);
+        std::cerr << std::endl << "Failed to open the nRF51 ble driver." << std::endl;
         baton->result = error_code;
         return;
     }
 
     if (baton->enable_ble) {
-        error_code = Adapter::enableBLE(adapter);
+        // Enable BLE with default values defined in Adapter:enableBLE private function
+        error_code = Adapter::enableBLE(adapter); 
 
         if (error_code == NRF_SUCCESS)
         {
@@ -603,11 +697,9 @@ void Adapter::Open(uv_work_t *req)
 
         if (error_code == NRF_ERROR_INVALID_STATE)
         {
-            printf("BLE stack already enabled\n"); fflush(stdout);
+            std::cerr << "BLE stack already enabled" << std::endl;
             return;
         }
-
-        printf("Failed to enable BLE stack.\n"); fflush(stdout);
     }
 
     baton->result = error_code;
@@ -625,15 +717,20 @@ void Adapter::AfterOpen(uv_work_t *req)
     if (baton->result != NRF_SUCCESS)
     {
         argv[0] = ErrorMessage::getErrorMessage(baton->result, "opening port");
-
-        baton->mainObject->cleanUpV8Resources();
     }
     else
     {
         argv[0] = Nan::Undefined();
     }
 
+    if (baton->result != NRF_SUCCESS)
+    {
+        baton->mainObject->cleanUpV8Resources();
+    }
+
+
     baton->callback->Call(1, argv);
+
     delete baton;
 }
 
@@ -646,7 +743,7 @@ NAN_METHOD(Adapter::Close)
     {
         callback = ConversionUtility::getCallbackFunction(info[0]);
     }
-    catch (char const *error)
+    catch (std::string error)
     {
         auto message = ErrorMessage::getTypeErrorMessage(0, error);
         Nan::ThrowTypeError(message);
@@ -671,9 +768,6 @@ void Adapter::AfterClose(uv_work_t *req)
     Nan::HandleScope scope;
     auto baton = static_cast<CloseBaton *>(req->data);
 
-    baton->mainObject->cleanUpV8Resources();
-    baton->mainObject->closing = false;
-
     v8::Local<v8::Value> argv[1];
 
     if (baton->result != NRF_SUCCESS)
@@ -684,6 +778,8 @@ void Adapter::AfterClose(uv_work_t *req)
     {
         argv[0] = Nan::Undefined();
     }
+
+    baton->mainObject->cleanUpV8Resources();
 
     baton->callback->Call(1, argv);
     delete baton;
@@ -705,7 +801,7 @@ NAN_METHOD(Adapter::AddVendorSpecificUUID)
         callback = ConversionUtility::getCallbackFunction(info[argumentcount]);
         argumentcount++;
     }
-    catch (char const *error)
+    catch (std::string error)
     {
         auto message = ErrorMessage::getTypeErrorMessage(argumentcount, error);
         Nan::ThrowTypeError(message);
@@ -816,7 +912,7 @@ NAN_METHOD(Adapter::GetVersion)
     {
         callback = ConversionUtility::getCallbackFunction(info[0]);
     }
-    catch (char const *error)
+    catch (std::string error)
     {
         auto message = ErrorMessage::getTypeErrorMessage(0, error);
         Nan::ThrowTypeError(message);
@@ -879,7 +975,7 @@ NAN_METHOD(Adapter::EncodeUUID)
         callback = ConversionUtility::getCallbackFunction(info[argumentcount]);
         argumentcount++;
     }
-    catch (char const *error)
+    catch (std::string error)
     {
         auto message = ErrorMessage::getTypeErrorMessage(argumentcount, error);
         Nan::ThrowTypeError(message);
@@ -892,7 +988,7 @@ NAN_METHOD(Adapter::EncodeUUID)
     {
         baton->p_uuid = BleUUID(uuid);
     }
-    catch (char const *error)
+    catch (std::string error)
     {
         std::stringstream errormessage;
         errormessage << "Could not process the UUID. Reason: " << error;
@@ -960,7 +1056,7 @@ NAN_METHOD(Adapter::DecodeUUID)
         callback = ConversionUtility::getCallbackFunction(info[argumentcount]);
         argumentcount++;
     }
-    catch (char const *error)
+    catch (std::string error)
     {
         auto message = ErrorMessage::getTypeErrorMessage(argumentcount, error);
         Nan::ThrowTypeError(message);
@@ -1040,7 +1136,7 @@ NAN_METHOD(Adapter::ReplyUserMemory)
         callback = ConversionUtility::getCallbackFunction(info[argumentcount]);
         argumentcount++;
     }
-    catch (char const *error)
+    catch (std::string error)
     {
         auto message = ErrorMessage::getTypeErrorMessage(argumentcount, error);
         Nan::ThrowTypeError(message);
@@ -1055,7 +1151,7 @@ NAN_METHOD(Adapter::ReplyUserMemory)
     {
         baton->p_block = UserMemBlock(mem_block);
     }
-    catch (char const *error)
+    catch (std::string error)
     {
         auto message = ErrorMessage::getStructErrorMessage("user mem reply", error);
         Nan::ThrowTypeError(message);
@@ -1092,14 +1188,125 @@ void Adapter::AfterReplyUserMemory(uv_work_t *req)
     delete baton;
 }
 
-//
-// Version -- START --
-//
+#pragma region BandwidthCountParameters
+
+v8::Local<v8::Object> BandwidthCountParameters::ToJs()
+{
+    Nan::EscapableHandleScope scope;
+    v8::Local<v8::Object> obj = Nan::New<v8::Object>();
+
+    Utility::Set(obj, "high_count", native->high_count);
+    Utility::Set(obj, "mid_count", native->mid_count);
+    Utility::Set(obj, "low_count", native->low_count);
+
+    return scope.Escape(obj);
+}
+
+ble_conn_bw_count_t *BandwidthCountParameters::ToNative()
+{
+    auto count_params = new ble_conn_bw_count_t();
+    count_params->high_count = ConversionUtility::getNativeUint8(jsobj, "high_count");
+    count_params->mid_count = ConversionUtility::getNativeUint8(jsobj, "mid_count");
+    count_params->low_count = ConversionUtility::getNativeUint8(jsobj, "low_count");
+    return count_params;
+}
+
+#pragma endregion BandwidthCountParameters
+
+#pragma region BandwidthGlobalMemoryPool
+
+v8::Local<v8::Object> BandwidthGlobalMemoryPool::ToJs()
+{
+    Nan::EscapableHandleScope scope;
+    v8::Local<v8::Object> obj = Nan::New<v8::Object>();
+
+    if (native == nullptr)
+    {
+        return scope.Escape(obj);
+    }
+    
+    Utility::Set(obj, "tx_counts", BandwidthCountParameters(&native->tx_counts).ToJs());
+    Utility::Set(obj, "rx_counts", BandwidthCountParameters(&native->rx_counts).ToJs());
+    
+    return scope.Escape(obj);
+}
+
+ble_conn_bw_counts_t *BandwidthGlobalMemoryPool::ToNative()
+{
+    if (Utility::IsNull(jsobj))
+    {
+        return nullptr;
+    }
+
+    auto memory_pool = new ble_conn_bw_counts_t();
+    memory_pool->tx_counts = BandwidthCountParameters(ConversionUtility::getJsObject(jsobj, "tx_counts"));
+    memory_pool->rx_counts = BandwidthCountParameters(ConversionUtility::getJsObject(jsobj, "rx_counts"));
+    return memory_pool;
+}
+
+#pragma endregion BandwidthGlobalMemoryPool
+
+#pragma region CommonEnableParameters
+
+v8::Local<v8::Object> CommonEnableParameters::ToJs()
+{
+    Nan::EscapableHandleScope scope;
+    v8::Local<v8::Object> obj = Nan::New<v8::Object>();
+
+    Utility::Set(obj, "vs_uuid_count", native->vs_uuid_count);
+    if (native->p_conn_bw_counts == nullptr)
+    {
+        Utility::Set(obj, "conn_bw_counts", Nan::Null());
+    }
+    else
+    {
+        Utility::Set(obj, "conn_bw_counts", BandwidthGlobalMemoryPool(native->p_conn_bw_counts).ToJs());
+    }
+
+    return scope.Escape(obj);
+}
+
+ble_common_enable_params_t *CommonEnableParameters::ToNative()
+{
+    auto enable_params = new ble_common_enable_params_t();
+    enable_params->vs_uuid_count = ConversionUtility::getNativeUint16(jsobj, "vs_uuid_count");
+    enable_params->p_conn_bw_counts = BandwidthGlobalMemoryPool(ConversionUtility::getJsObjectOrNull(jsobj, "conn_bw_counts"));
+    return enable_params;
+}
+
+#pragma endregion CommonEnableParameters
+
+#pragma region EnableParameters
+
+v8::Local<v8::Object> EnableParameters::ToJs()
+{
+    Nan::EscapableHandleScope scope;
+    v8::Local<v8::Object> obj = Nan::New<v8::Object>();
+
+    Utility::Set(obj, "common_enable_params", CommonEnableParameters(&native->common_enable_params).ToJs());
+    Utility::Set(obj, "gap_enable_params", GapEnableParameters(&native->gap_enable_params).ToJs());
+    Utility::Set(obj, "gatts_enable_params", GattsEnableParameters(&native->gatts_enable_params).ToJs());
+
+    return scope.Escape(obj);
+}
+
+ble_enable_params_t *EnableParameters::ToNative()
+{
+    auto enable_params = new ble_enable_params_t();
+    enable_params->common_enable_params = CommonEnableParameters(ConversionUtility::getJsObject(jsobj, "common_enable_params"));
+    enable_params->gap_enable_params = GapEnableParameters(ConversionUtility::getJsObject(jsobj, "gap_enable_params"));
+    enable_params->gatts_enable_params = GattsEnableParameters(ConversionUtility::getJsObjectOrNull(jsobj, "gatts_enable_params"));
+    return enable_params;
+}
+
+#pragma endregion EnableParameters
+
+#pragma region Version
 
 v8::Local<v8::Object> Version::ToJs()
 {
     Nan::EscapableHandleScope scope;
-    auto obj = Nan::New<v8::Object>();
+    v8::Local<v8::Object> obj = Nan::New<v8::Object>();
 
     Utility::Set(obj, "version_number", native->version_number);
     Utility::Set(obj, "company_id", native->company_id);
@@ -1122,18 +1329,14 @@ ble_version_t *Version::ToNative()
     return version;
 }
 
-//
-// Version -- END --
-//
+#pragma endregion Version
 
-//
-// UserMemBlock -- START --
-//
+#pragma region UserMemBlock
 
 v8::Local<v8::Object> UserMemBlock::ToJs()
 {
     Nan::EscapableHandleScope scope;
-    auto obj = Nan::New<v8::Object>();
+    v8::Local<v8::Object> obj = Nan::New<v8::Object>();
 
     Utility::Set(obj, "mem", ConversionUtility::toJsValueArray(native->p_mem, native->len));
     Utility::Set(obj, "len", native->len);
@@ -1156,13 +1359,9 @@ ble_user_mem_block_t *UserMemBlock::ToNative()
     return uuid;
 }
 
-//
-// UserMemBlock -- END --
-//
+#pragma endregion UserMemBlock
 
-//
-// BleUUID -- START --
-//
+#pragma region BleUUID
 
 v8::Local<v8::Object> BleUUID::ToJs()
 {
@@ -1191,13 +1390,9 @@ ble_uuid_t *BleUUID::ToNative()
     return uuid;
 }
 
-//
-// BleUUID -- END --
-//
+#pragma endregion BleUUID
 
-//
-// UUID128 -- START --
-//
+#pragma region UUID128
 
 v8::Local<v8::Object> BleUUID128::ToJs()
 {
@@ -1206,7 +1401,12 @@ v8::Local<v8::Object> BleUUID128::ToJs()
     v8::Local<v8::Object> obj = Nan::New<v8::Object>();
     size_t uuid_len = 16 * 2 + 4 + 1; // Each byte -> 2 chars, 4 - separator _between_ some bytes and 1 byte null termination character
     auto uuid128string = static_cast<char*>(malloc(uuid_len));
-    assert(uuid128string != nullptr);
+
+    if (uuid128string == nullptr) {
+        std::cerr << "uuid128string is null. Illegal state, terminating." << std::endl;
+        std::terminate();
+    }
+
     uint8_t *ptr = native->uuid128;
 
     sprintf(uuid128string, "%02x%02x%02x%02x-%02x%02x-%02x%02x-%02x%02x-%02x%02x%02x%02x%02x%02x", ptr[0], ptr[1], ptr[2], ptr[3], ptr[4], ptr[5], ptr[6], ptr[7], ptr[8], ptr[9], ptr[10], ptr[11], ptr[12], ptr[13], ptr[14], ptr[15]);
@@ -1231,7 +1431,12 @@ ble_uuid128_t *BleUUID128::ToNative()
     v8::Local<v8::String> uuidString = uuidObject->ToString();
     size_t uuid_len = uuidString->Length() + 1;
     auto uuidPtr = static_cast<char*>(malloc(uuid_len));
-    assert(uuidPtr != nullptr);
+
+    if (uuidPtr == nullptr) {
+        std::cerr << "uuidPtr is null. Illegal state, terminating." << std::endl;
+        std::terminate();
+    }
+
     uuidString->WriteUtf8(uuidPtr, uuid_len);
 
     auto scan_count = sscanf(uuidPtr,
@@ -1244,7 +1449,11 @@ ble_uuid128_t *BleUUID128::ToNative()
         &(ptr[5]), &(ptr[4]),
         &(ptr[3]), &(ptr[2]),
         &(ptr[1]), &(ptr[0]));
-    assert(scan_count == 16);
+
+    if (scan_count != 16) {
+        std::cerr << "scan_count is not 16, illegal state, terminating." << std::endl;
+        std::terminate();
+    }
 
     free(uuidPtr);
 
@@ -1256,9 +1465,7 @@ ble_uuid128_t *BleUUID128::ToNative()
     return uuid;
 }
 
-//
-// UUID128 -- END --
-//
+#pragma endregion UUID128
 
 extern "C" {
     void init_adapter_list(Nan::ADDON_REGISTER_FUNCTION_ARGS_TYPE target);
@@ -1286,6 +1493,8 @@ extern "C" {
         init_gatts(target);
 
         Adapter::Init(target);
+
+        init_uecc(target);
     }
 
     void init_adapter_list(Nan::ADDON_REGISTER_FUNCTION_ARGS_TYPE target)
@@ -1437,7 +1646,8 @@ extern "C" {
     {
         NODE_DEFINE_CONSTANT(target, BLE_USER_MEM_TYPE_INVALID);                /**< Invalid User Memory Types. */
         NODE_DEFINE_CONSTANT(target, BLE_USER_MEM_TYPE_GATTS_QUEUED_WRITES);    /**< User Memory for GATTS queued writes. */
-        NODE_DEFINE_CONSTANT(target, BLE_UUID_VS_MAX_COUNT);                    /** @brief  Maximum number of Vendor Specific UUIDs. */
+        NODE_DEFINE_CONSTANT(target, BLE_UUID_VS_COUNT_DEFAULT);                /**< Use the default VS UUID count (10 for this version of the SoftDevice). */
+        NODE_DEFINE_CONSTANT(target, BLE_UUID_VS_COUNT_MIN);                    /**< Minimum VS UUID count. */
 
         NODE_DEFINE_CONSTANT(target, BLE_EVT_TX_COMPLETE);                      /**< Transmission Complete. @ref ble_evt_tx_complete_t */
         NODE_DEFINE_CONSTANT(target, BLE_EVT_USER_MEM_REQUEST);                 /**< User Memory request. @ref ble_evt_user_mem_request_t */
@@ -1546,6 +1756,8 @@ extern "C" {
         NODE_DEFINE_CONSTANT(target, NRF_ERROR_FORBIDDEN);                   ///< Forbidden Operation
         NODE_DEFINE_CONSTANT(target, NRF_ERROR_INVALID_ADDR);                ///< Bad Memory Address
         NODE_DEFINE_CONSTANT(target, NRF_ERROR_BUSY);                        ///< Busy
+        NODE_DEFINE_CONSTANT(target, NRF_ERROR_CONN_COUNT);                  ///< Maximum connection count exceeded
+        NODE_DEFINE_CONSTANT(target, NRF_ERROR_RESOURCES);                   ///< Not enough resources for operation
     }
 
     void init_app_status(Nan::ADDON_REGISTER_FUNCTION_ARGS_TYPE target)

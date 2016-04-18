@@ -30,6 +30,7 @@ uint32_t ble_gap_sec_params_reply_req_enc(uint16_t                           con
     uint8_t  op_code  = SD_BLE_GAP_SEC_PARAMS_REPLY;
     uint32_t err_code = NRF_SUCCESS;
     uint32_t buf_len  = *p_buf_len;
+
     uint32_t index    = 0;
 
     err_code = uint8_t_enc(&op_code, p_buf, buf_len, &index);
@@ -76,7 +77,7 @@ uint32_t ble_gap_sec_params_reply_rsp_dec(uint8_t const * const              p_b
         return NRF_SUCCESS;
     }
 
-    SER_ASSERT_NOT_NULL(p_sec_keyset);
+    //SER_ASSERT_NOT_NULL(p_sec_keyset); // Removed after input from KC 2016-03-11
 
     err_code = cond_field_dec(p_buf, packet_len, &index, (void **)&p_sec_keyset, ble_gap_sec_keyset_t_dec);
     SER_ASSERT(err_code == NRF_SUCCESS, err_code);

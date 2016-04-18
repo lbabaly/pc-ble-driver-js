@@ -76,28 +76,32 @@ public:
 class Utility
 {
 public:
-	static v8::Local<v8::Value> Get(v8::Local<v8::Object> jsobj, const char *name);
-	static void SetMethod(v8::Handle<v8::Object> target, const char *exportName, Nan::FunctionCallback function);
+    static v8::Local<v8::Value> Get(v8::Local<v8::Object> jsobj, const char *name);
+    static v8::Local<v8::Value> Get(v8::Local<v8::Object> jsobj, const int index);
+    static void SetMethod(v8::Handle<v8::Object> target, const char *exportName, Nan::FunctionCallback function);
 
-	static bool Set(v8::Handle<v8::Object> target, const char *name, int32_t value);
-	static bool Set(v8::Handle<v8::Object> target, const char *name, uint32_t value);
-	static bool Set(v8::Handle<v8::Object> target, const char *name, int16_t value);
-	static bool Set(v8::Handle<v8::Object> target, const char *name, uint16_t value);
-	static bool Set(v8::Handle<v8::Object> target, const char *name, int8_t value);
-	static bool Set(v8::Handle<v8::Object> target, const char *name, uint8_t value);
-	static bool Set(v8::Handle<v8::Object> target, const char *name, bool value);
-	static bool Set(v8::Handle<v8::Object> target, const char *name, double value);
-	static bool Set(v8::Handle<v8::Object> target, const char *name, const char *value);
-	static bool Set(v8::Handle<v8::Object> target, const char *name, std::string value);
-	static bool Set(v8::Handle<v8::Object> target, const char *name, v8::Local<v8::Value> value);
+    static bool Set(v8::Handle<v8::Object> target, const char *name, int32_t value);
+    static bool Set(v8::Handle<v8::Object> target, const char *name, uint32_t value);
+    static bool Set(v8::Handle<v8::Object> target, const char *name, int16_t value);
+    static bool Set(v8::Handle<v8::Object> target, const char *name, uint16_t value);
+    static bool Set(v8::Handle<v8::Object> target, const char *name, int8_t value);
+    static bool Set(v8::Handle<v8::Object> target, const char *name, uint8_t value);
+    static bool Set(v8::Handle<v8::Object> target, const char *name, bool value);
+    static bool Set(v8::Handle<v8::Object> target, const char *name, double value);
+    static bool Set(v8::Handle<v8::Object> target, const char *name, const char *value);
+    static bool Set(v8::Handle<v8::Object> target, const char *name, std::string value);
+    static bool Set(v8::Handle<v8::Object> target, const char *name, v8::Local<v8::Value> value);
 
     static bool Has(v8::Handle<v8::Object> target, const char *name);
 
-	static void SetReturnValue(Nan::NAN_METHOD_ARGS_TYPE info, v8::Local<v8::Object> value);
+    static void SetReturnValue(Nan::NAN_METHOD_ARGS_TYPE info, v8::Local<v8::Object> value);
 
     static bool IsObject(v8::Local<v8::Object> jsobj, const char *name);
     static bool IsNull(v8::Local<v8::Object> jsobj, const char *name);
     static bool IsNull(v8::Local<v8::Object> jsobj);
+
+    static bool IsBetween(const uint8_t value, const uint8_t min, const uint8_t max);
+    static bool EnsureAsciiNumbers(uint8_t *value, const int length);
 };
 
 template<typename EventType>
@@ -206,7 +210,8 @@ public:
         {
             throw "bool";
         }
-        return static_cast<NativeType>(js->ToBoolean()->BooleanValue()) ? 1 : 0;
+
+        return static_cast<NativeType>(js->ToBoolean()->BooleanValue());
     }
 
     static NativeType getNativeUnsigned(v8::Local<v8::Object> js, const char *name)
@@ -256,6 +261,8 @@ public:
     static double       getNativeDouble(v8::Local<v8::Value> js);
     static uint8_t      getNativeBool(v8::Local<v8::Object>js, const char *name);
     static uint8_t      getNativeBool(v8::Local<v8::Value>js);
+    static bool         getBool(v8::Local<v8::Object>js, const char *name);
+    static bool         getBool(v8::Local<v8::Value>js);
     static uint8_t *    getNativePointerToUint8(v8::Local<v8::Object>js, const char *name);
     static uint8_t *    getNativePointerToUint8(v8::Local<v8::Value>js);
     static uint16_t *   getNativePointerToUint16(v8::Local<v8::Object>js, const char *name);
@@ -285,7 +292,7 @@ public:
     static v8::Handle<v8::Value> toJsString(const char *cString, uint16_t length);
     static v8::Handle<v8::Value> toJsString(uint8_t *cString, uint16_t length);
     static v8::Handle<v8::Value> toJsString(std::string string);
-    static const char *                valueToString(uint16_t value, name_map_t name_map, const char *defaultValue = "Unknown value");
+    static const char *          valueToString(uint16_t value, name_map_t name_map, const char *defaultValue = "Unknown value");
     static v8::Handle<v8::Value> valueToJsString(uint16_t, name_map_t name_map, v8::Handle<v8::Value> defaultValue = Nan::New<v8::String>("Unknown value").ToLocalChecked());
 
     static v8::Local<v8::Function> getCallbackFunction(v8::Local<v8::Object> js, const char *name);
@@ -299,15 +306,15 @@ public:
 class ErrorMessage
 {
 public:
-    static v8::Local<v8::Value> getErrorMessage(int errorCode, char const *customMessage);
-    static v8::Local<v8::String> getTypeErrorMessage(int argumentNumber, char const *message);
-    static v8::Local<v8::String> getStructErrorMessage(char const *name, char const *message);
+    static v8::Local<v8::Value> getErrorMessage(const int errorCode, const std::string customMessage);
+    static v8::Local<v8::String> getTypeErrorMessage(const int argumentNumber, const std::string message);
+    static v8::Local<v8::String> getStructErrorMessage(const std::string name, const std::string message);
 };
 
 class StatusMessage
 {
 public:
-    static v8::Local<v8::Value> getStatus(int status, char const *message, char const *timestamp);
+    static v8::Local<v8::Value> getStatus(const int status, const std::string message, const std::string timestamp);
 };
 
 class HciStatus

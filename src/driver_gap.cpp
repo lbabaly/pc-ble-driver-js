@@ -16,6 +16,7 @@
 #include <cstdlib>
 #include <cstdio>
 #include <mutex>
+#include <memory>
 
 // stdout for debugging
 #include <iostream>
@@ -30,6 +31,8 @@ extern int adapterCount;
 #define UUID_16_BIT_SPRINTF "%04X"
 #define UUID_128_BIT_SPRINTF "%04X%04X-0000-1000-8000-00805F9B34FB"
 #define UUID_128_BIT_COMPLETE_SPRINTF "%04X%04X-%04X-%04X-%04X-%04X%04X%04X"
+
+#pragma region Name Map entries to enable constants (value and name) from C in JavaScript
 
 static name_map_t gap_adv_type_map = {
     NAME_MAP_ENTRY(BLE_GAP_ADV_TYPE_ADV_IND),
@@ -51,7 +54,6 @@ static name_map_t gap_timeout_sources_map =
     NAME_MAP_ENTRY(BLE_GAP_TIMEOUT_SRC_SCAN),
     NAME_MAP_ENTRY(BLE_GAP_TIMEOUT_SRC_CONN)
 };
-
 
 static name_map_t gap_addr_type_map =
 {
@@ -116,13 +118,6 @@ static name_map_t gap_io_caps_map =
     NAME_MAP_ENTRY(BLE_GAP_IO_CAPS_KEYBOARD_DISPLAY)
 };
 
-static name_map_t gap_auth_key_type_map =
-{
-    NAME_MAP_ENTRY(BLE_GAP_AUTH_KEY_TYPE_NONE),
-    NAME_MAP_ENTRY(BLE_GAP_AUTH_KEY_TYPE_PASSKEY),
-    NAME_MAP_ENTRY(BLE_GAP_AUTH_KEY_TYPE_OOB)
-};
-
 static name_map_t gap_sec_status_map =
 {
     NAME_MAP_ENTRY(BLE_GAP_SEC_STATUS_SUCCESS),
@@ -140,6 +135,10 @@ static name_map_t gap_sec_status_map =
     NAME_MAP_ENTRY(BLE_GAP_SEC_STATUS_UNSPECIFIED),
     NAME_MAP_ENTRY(BLE_GAP_SEC_STATUS_REPEATED_ATTEMPTS),
     NAME_MAP_ENTRY(BLE_GAP_SEC_STATUS_INVALID_PARAMS),
+    NAME_MAP_ENTRY(BLE_GAP_SEC_STATUS_DHKEY_FAILURE),
+    NAME_MAP_ENTRY(BLE_GAP_SEC_STATUS_NUM_COMP_FAILURE),
+    NAME_MAP_ENTRY(BLE_GAP_SEC_STATUS_BR_EDR_IN_PROG),
+    NAME_MAP_ENTRY(BLE_GAP_SEC_STATUS_X_TRANS_KEY_DISALLOWED),
     NAME_MAP_ENTRY(BLE_GAP_SEC_STATUS_RFU_RANGE2_BEGIN),
     NAME_MAP_ENTRY(BLE_GAP_SEC_STATUS_RFU_RANGE2_END)
 };
@@ -150,13 +149,58 @@ static name_map_t gap_sec_status_sources_map =
     NAME_MAP_ENTRY(BLE_GAP_SEC_STATUS_SOURCE_REMOTE)
 };
 
+static name_map_t gap_kp_not_types =
+{
+    NAME_MAP_ENTRY(BLE_GAP_KP_NOT_TYPE_PASSKEY_START),
+    NAME_MAP_ENTRY(BLE_GAP_KP_NOT_TYPE_PASSKEY_DIGIT_IN),
+    NAME_MAP_ENTRY(BLE_GAP_KP_NOT_TYPE_PASSKEY_DIGIT_OUT),
+    NAME_MAP_ENTRY(BLE_GAP_KP_NOT_TYPE_PASSKEY_CLEAR),
+    NAME_MAP_ENTRY(BLE_GAP_KP_NOT_TYPE_PASSKEY_END)
+};
 
-// BleDriverEvent -- START --
-// BleDriverEvent -- END --
+static name_map_t gap_auth_key_types =
+{
+    NAME_MAP_ENTRY(BLE_GAP_AUTH_KEY_TYPE_NONE),
+    NAME_MAP_ENTRY(BLE_GAP_AUTH_KEY_TYPE_PASSKEY),
+    NAME_MAP_ENTRY(BLE_GAP_AUTH_KEY_TYPE_OOB)
+};
 
-//
-// GapAddr -- START --
-//
+#pragma endregion Name Map entries to enable constants (value and name) from C in JavaScript
+
+#pragma region Conversion methods to/from JavaScript/C++
+#pragma region GapEnableParameters
+
+v8::Local<v8::Object> GapEnableParameters::ToJs()
+{
+    Nan::EscapableHandleScope scope;
+    v8::Local<v8::Object> obj = Nan::New<v8::Object>();
+
+    Utility::Set(obj, "periph_conn_count", native->periph_conn_count);
+    Utility::Set(obj, "central_conn_count", native->central_conn_count);
+    Utility::Set(obj, "central_sec_count", native->central_sec_count);
+
+    return scope.Escape(obj);
+}
+
+ble_gap_enable_params_t *GapEnableParameters::ToNative()
+{
+    if (Utility::IsNull(jsobj))
+    {
+        return nullptr;
+    }
+
+    auto enable_params = new ble_gap_enable_params_t();
+
+    enable_params->periph_conn_count = ConversionUtility::getNativeUint8(jsobj, "periph_conn_count");
+    enable_params->central_conn_count = ConversionUtility::getNativeUint8(jsobj, "central_conn_count");
+    enable_params->central_sec_count = ConversionUtility::getNativeUint8(jsobj, "central_sec_count");
+
+    return enable_params;
+}
+
+#pragma endregion GapEnableParameters
+
+#pragma region GapAddr
 
 v8::Local<v8::Object> GapAddr::ToJs()
 {
@@ -221,13 +265,9 @@ ble_gap_addr_t *GapAddr::ToNative()
     return address;
 }
 
-//
-// GapAddr -- END --
-//
+#pragma endregion GapAddr
 
-//
-// GapConnParams -- START --
-//
+#pragma region GapConnParams
 
 v8::Local<v8::Object> GapConnParams::ToJs()
 {
@@ -260,14 +300,9 @@ ble_gap_conn_params_t *GapConnParams::ToNative()
     return conn_params;
 }
 
-//
-// GapConnParams -- END --
-//
+#pragma endregion GapConnParams
 
-
-//
-// GapConnSecMode -- START --
-//
+#pragma region GapConnSecMode
 
 v8::Local<v8::Object> GapConnSecMode::ToJs()
 {
@@ -294,13 +329,856 @@ ble_gap_conn_sec_mode_t *GapConnSecMode::ToNative()
     return conn_sec_mode;
 }
 
-//
-// GapConnSecMode -- END --
-//
+#pragma endregion GapConnSecMode
 
-//
-// GapAdvReport -- START --
-//
+#pragma region GapConnSec
+
+v8::Local<v8::Object> GapConnSec::ToJs()
+{
+    Nan::EscapableHandleScope scope;
+    v8::Local<v8::Object> obj = Nan::New<v8::Object>();
+    Utility::Set(obj, "sec_mode", GapConnSecMode(&(native->sec_mode)).ToJs());
+    Utility::Set(obj, "encr_key_size", native->encr_key_size);
+    return scope.Escape(obj);
+}
+
+ble_gap_conn_sec_t *GapConnSec::ToNative()
+{
+    if (Utility::IsNull(jsobj))
+    {
+        return nullptr;
+    }
+
+    auto conn_sec = new ble_gap_conn_sec_t();
+    memset(conn_sec, 0, sizeof(ble_gap_conn_sec_t));
+
+    conn_sec->sec_mode = GapConnSecMode(ConversionUtility::getJsObject(jsobj, "sec_mode"));
+    conn_sec->encr_key_size = ConversionUtility::getNativeUint8(jsobj, "encr_key_size");
+
+    return conn_sec;
+}
+
+#pragma endregion GapConnSec
+
+#pragma region GapIrk
+
+v8::Local<v8::Object> GapIrk::ToJs()
+{
+    Nan::EscapableHandleScope scope;
+    v8::Local<v8::Object> obj = Nan::New<v8::Object>();
+    Utility::Set(obj, "irk", ConversionUtility::toJsValueArray(native->irk, BLE_GAP_SEC_KEY_LEN));
+    return scope.Escape(obj);
+}
+
+ble_gap_irk_t *GapIrk::ToNative()
+{
+    if (Utility::IsNull(jsobj))
+    {
+        return nullptr;
+    }
+
+    auto irk = new ble_gap_irk_t();
+    memset(irk, 0, sizeof(ble_gap_irk_t));
+
+    auto p_irk = ConversionUtility::getNativePointerToUint8(jsobj, "irk");
+
+    for (auto i = 0; i < BLE_GAP_SEC_KEY_LEN; i++)
+    {
+        irk->irk[i] = p_irk[i];
+    }
+
+    return irk;
+}
+
+#pragma endregion GapIrk
+
+#pragma region GapAdvChannelMask
+
+v8::Local<v8::Object> GapAdvChannelMask::ToJs()
+{
+    Nan::EscapableHandleScope scope;
+    // Channel Mask are never retrieved from driver.
+    v8::Local<v8::Object> obj = Nan::New<v8::Object>();
+    return scope.Escape(obj);
+}
+
+ble_gap_adv_ch_mask_t *GapAdvChannelMask::ToNative()
+{
+    if (Utility::IsNull(jsobj))
+    {
+        return nullptr;
+    }
+
+    auto mask = new ble_gap_adv_ch_mask_t();
+    memset(mask, 0, sizeof(ble_gap_adv_ch_mask_t));
+
+    mask->ch_37_off = ConversionUtility::getNativeBool(jsobj, "ch_37_off");
+    mask->ch_38_off = ConversionUtility::getNativeBool(jsobj, "ch_38_off");
+    mask->ch_39_off = ConversionUtility::getNativeBool(jsobj, "ch_39_off");
+
+    return mask;
+}
+
+#pragma endregion GapAdvChannelMask
+
+#pragma region GapAdvParams
+
+v8::Local<v8::Object> GapAdvParams::ToJs()
+{
+    Nan::EscapableHandleScope scope;
+    // Advertisement parameters are never retrieved from driver.
+    v8::Local<v8::Object> obj = Nan::New<v8::Object>();
+    return scope.Escape(obj);
+}
+
+ble_gap_adv_params_t *GapAdvParams::ToNative()
+{
+    if (Utility::IsNull(jsobj))
+    {
+        return nullptr;
+    }
+
+    auto params = new ble_gap_adv_params_t();
+    memset(params, 0, sizeof(ble_gap_adv_params_t));
+
+    params->type = ConversionUtility::getNativeUint8(jsobj, "type");
+    // TODO: Add p_peer_addr
+    // params->p_peer_addr = ;
+    params->fp = ConversionUtility::getNativeUint8(jsobj, "fp");
+    // TODO: Add whitelist
+    params->interval = ConversionUtility::msecsToUnitsUint16(jsobj, "interval", ConversionUtility::ConversionUnit625ms);
+    params->timeout = ConversionUtility::getNativeUint16(jsobj, "timeout");
+    params->channel_mask = GapAdvChannelMask(ConversionUtility::getJsObject(jsobj, "channel_mask"));
+
+    return params;
+}
+
+#pragma endregion GapAdvParams
+
+#pragma region GapScanParams
+
+v8::Local<v8::Object> GapScanParams::ToJs()
+{
+    Nan::EscapableHandleScope scope;
+    // Scan parameters are never retrieved from driver.
+    v8::Local<v8::Object> obj = Nan::New<v8::Object>();
+    return scope.Escape(obj);
+}
+
+ble_gap_scan_params_t *GapScanParams::ToNative()
+{
+    if (Utility::IsNull(jsobj))
+    {
+        return nullptr;
+    }
+
+    auto params = new ble_gap_scan_params_t();
+    memset(params, 0, sizeof(ble_gap_scan_params_t));
+
+    params->active = ConversionUtility::getNativeBool(jsobj, "active");
+    //params->selective = ConversionUtility::getNativeBool(jsobj, "selective");
+    //TODO: params->p_whitelist =
+    params->interval = ConversionUtility::msecsToUnitsUint16(jsobj, "interval", ConversionUtility::ConversionUnit625ms);
+    params->window = ConversionUtility::msecsToUnitsUint16(jsobj, "window", ConversionUtility::ConversionUnit625ms);
+    params->timeout = ConversionUtility::getNativeUint16(jsobj, "timeout");
+
+    return params;
+}
+
+#pragma endregion GapScanParams
+
+#pragma region GapSecKdist
+
+v8::Local<v8::Object> GapSecKdist::ToJs()
+{
+    Nan::EscapableHandleScope scope;
+    v8::Local<v8::Object> obj = Nan::New<v8::Object>();
+    Utility::Set(obj, "enc", ConversionUtility::toJsBool(native->enc));
+    Utility::Set(obj, "id", ConversionUtility::toJsBool(native->id));
+    Utility::Set(obj, "sign", ConversionUtility::toJsBool(native->sign));
+    Utility::Set(obj, "link", ConversionUtility::toJsBool(native->link));
+
+    return scope.Escape(obj);
+}
+
+ble_gap_sec_kdist_t *GapSecKdist::ToNative()
+{
+    if (Utility::IsNull(jsobj))
+    {
+        return nullptr;
+    }
+
+    auto kdist = new ble_gap_sec_kdist_t();
+    memset(kdist, 0, sizeof(ble_gap_sec_kdist_t));
+
+    kdist->enc = ConversionUtility::getNativeBool(jsobj, "enc");
+    kdist->id = ConversionUtility::getNativeBool(jsobj, "id");
+    kdist->sign = ConversionUtility::getNativeBool(jsobj, "sign");
+    kdist->link = ConversionUtility::getNativeBool(jsobj, "link");
+
+    return kdist;
+}
+
+#pragma endregion GapSecKdist
+
+#pragma region GapSecParams
+
+v8::Local<v8::Object> GapSecParams::ToJs()
+{
+    Nan::EscapableHandleScope scope;
+    v8::Local<v8::Object> obj = Nan::New<v8::Object>();
+    Utility::Set(obj, "bond", ConversionUtility::toJsBool(native->bond));
+    Utility::Set(obj, "mitm", ConversionUtility::toJsBool(native->mitm));
+    Utility::Set(obj, "lesc", ConversionUtility::toJsBool(native->lesc));
+    Utility::Set(obj, "keypress", ConversionUtility::toJsBool(native->keypress));
+    Utility::Set(obj, "io_caps", ConversionUtility::valueToJsString(native->io_caps, gap_io_caps_map));
+    Utility::Set(obj, "oob", ConversionUtility::toJsBool(native->oob));
+    Utility::Set(obj, "min_key_size", native->min_key_size);
+    Utility::Set(obj, "max_key_size", native->max_key_size);
+    Utility::Set(obj, "kdist_own", GapSecKdist(&(native->kdist_own)).ToJs());
+    Utility::Set(obj, "kdist_peer", GapSecKdist(&(native->kdist_peer)).ToJs());
+
+    return scope.Escape(obj);
+}
+
+ble_gap_sec_params_t *GapSecParams::ToNative()
+{
+    if (Utility::IsNull(jsobj))
+    {
+        return nullptr;
+    }
+
+    auto params = new ble_gap_sec_params_t();
+    memset(params, 0, sizeof(ble_gap_sec_params_t));
+
+    params->bond = ConversionUtility::getNativeBool(jsobj, "bond");
+    params->mitm = ConversionUtility::getNativeBool(jsobj, "mitm");
+    params->lesc = ConversionUtility::getNativeBool(jsobj, "lesc");
+    params->keypress = ConversionUtility::getNativeBool(jsobj, "keypress");
+
+    params->io_caps = ConversionUtility::getNativeUint8(jsobj, "io_caps");
+
+    params->oob = ConversionUtility::getNativeBool(jsobj, "oob");
+    params->min_key_size = ConversionUtility::getNativeUint8(jsobj, "min_key_size");
+    params->max_key_size = ConversionUtility::getNativeUint8(jsobj, "max_key_size");
+    params->kdist_own = GapSecKdist(ConversionUtility::getJsObject(jsobj, "kdist_own"));
+    params->kdist_peer = GapSecKdist(ConversionUtility::getJsObject(jsobj, "kdist_peer"));
+
+    return params;
+}
+
+#pragma endregion GapSecParams
+
+#pragma region GapEncInfo
+
+v8::Local<v8::Object> GapEncInfo::ToJs()
+{
+    Nan::EscapableHandleScope scope;
+    v8::Local<v8::Object> obj = Nan::New<v8::Object>();
+    Utility::Set(obj, "ltk", ConversionUtility::toJsValueArray(native->ltk, BLE_GAP_SEC_KEY_LEN));
+    Utility::Set(obj, "auth", ConversionUtility::toJsBool(native->auth));
+    Utility::Set(obj, "ltk_len", native->ltk_len);
+    Utility::Set(obj, "lesc", ConversionUtility::toJsBool(native->lesc));
+    return scope.Escape(obj);
+}
+
+ble_gap_enc_info_t *GapEncInfo::ToNative()
+{
+    if (Utility::IsNull(jsobj))
+    {
+        return nullptr;
+    }
+
+    auto enc_info = new ble_gap_enc_info_t();
+    memset(enc_info, 0, sizeof(ble_gap_enc_info_t));
+
+    auto p_ltk = ConversionUtility::getNativePointerToUint8(jsobj, "ltk");
+
+    for (auto i = 0; i < BLE_GAP_SEC_KEY_LEN; i++)
+    {
+        enc_info->ltk[i] = p_ltk[i];
+    }
+
+    enc_info->auth = ConversionUtility::getNativeBool(jsobj, "auth");
+    enc_info->ltk_len = ConversionUtility::getNativeUint8(jsobj, "ltk_len");
+    enc_info->lesc = ConversionUtility::getNativeBool(jsobj, "lesc");
+
+    return enc_info;
+}
+
+#pragma endregion GapEncInfo
+
+#pragma region GapMasterId
+
+v8::Local<v8::Object> GapMasterId::ToJs()
+{
+    Nan::EscapableHandleScope scope;
+    v8::Local<v8::Object> obj = Nan::New<v8::Object>();
+    Utility::Set(obj, "ediv", native->ediv);
+    Utility::Set(obj, "rand", ConversionUtility::toJsValueArray(native->rand, BLE_GAP_SEC_RAND_LEN));
+    return scope.Escape(obj);
+}
+
+ble_gap_master_id_t *GapMasterId::ToNative()
+{
+    if (Utility::IsNull(jsobj))
+    {
+        return nullptr;
+    }
+
+    auto master_id = new ble_gap_master_id_t();
+    memset(master_id, 0, sizeof(ble_gap_master_id_t));
+
+    master_id->ediv = ConversionUtility::getNativeUint16(jsobj, "ediv");
+
+
+    auto p_rand = ConversionUtility::getNativePointerToUint8(jsobj, "rand");
+
+    for (auto i = 0; i < BLE_GAP_SEC_RAND_LEN; i++)
+    {
+        master_id->rand[i] = p_rand[i];
+    }
+
+    return master_id;
+}
+
+#pragma endregion GapMasterId
+
+#pragma region GapSignInfo
+
+v8::Local<v8::Object> GapSignInfo::ToJs()
+{
+    Nan::EscapableHandleScope scope;
+    v8::Local<v8::Object> obj = Nan::New<v8::Object>();
+    Utility::Set(obj, "csrk", ConversionUtility::toJsValueArray(native->csrk, BLE_GAP_SEC_KEY_LEN));
+
+    return scope.Escape(obj);
+}
+
+ble_gap_sign_info_t *GapSignInfo::ToNative()
+{
+    if (Utility::IsNull(jsobj))
+    {
+        return nullptr;
+    }
+
+    auto sign_info = new ble_gap_sign_info_t();
+    memset(sign_info, 0, sizeof(ble_gap_sign_info_t));
+
+    auto p_csrk = ConversionUtility::getNativePointerToUint8(jsobj, "csrk");
+
+    for (auto i = 0; i < BLE_GAP_SEC_KEY_LEN; i++)
+    {
+        sign_info->csrk[i] = p_csrk[i];
+    }
+
+    return sign_info;
+}
+
+#pragma endregion GapSignInfo
+
+#pragma region GapLescP256Pk
+
+v8::Local<v8::Object> GapLescP256Pk::ToJs()
+{
+    Nan::EscapableHandleScope scope;
+    v8::Local<v8::Object> obj = Nan::New<v8::Object>();
+    Utility::Set(obj, "pk", ConversionUtility::toJsValueArray(native->pk, BLE_GAP_LESC_P256_PK_LEN));
+
+    return scope.Escape(obj);
+}
+
+ble_gap_lesc_p256_pk_t *GapLescP256Pk::ToNative()
+{
+    if (Utility::IsNull(jsobj))
+    {
+        return nullptr;
+    }
+
+    auto lesc_p256 = new ble_gap_lesc_p256_pk_t();
+    memset(lesc_p256, 0, sizeof(ble_gap_lesc_p256_pk_t));
+
+    auto p_pk = ConversionUtility::getNativePointerToUint8(jsobj, "pk");
+
+    for (auto i = 0; i < BLE_GAP_LESC_P256_PK_LEN; i++)
+    {
+        lesc_p256->pk[i] = p_pk[i];
+    }
+
+    return lesc_p256;
+}
+
+#pragma endregion GapLescP256Pk
+
+#pragma region GapLescDHKey
+
+v8::Local<v8::Object> GapLescDHKey::ToJs()
+{
+    Nan::EscapableHandleScope scope;
+    v8::Local<v8::Object> obj = Nan::New<v8::Object>();
+    Utility::Set(obj, "key", ConversionUtility::toJsValueArray(native->key, BLE_GAP_LESC_DHKEY_LEN));
+    return scope.Escape(obj);
+}
+
+ble_gap_lesc_dhkey_t *GapLescDHKey::ToNative()
+{
+    if (Utility::IsNull(jsobj))
+    {
+        return nullptr;
+    }
+
+    auto lesc_dhkey = new ble_gap_lesc_dhkey_t();
+    memset(lesc_dhkey, 0, sizeof(ble_gap_lesc_dhkey_t));
+
+    auto p_key = ConversionUtility::getNativePointerToUint8(jsobj, "key");
+
+    for (auto i = 0; i < BLE_GAP_LESC_DHKEY_LEN; i++)
+    {
+        lesc_dhkey->key[i] = p_key[i];
+    }
+
+    return lesc_dhkey;
+}
+
+#pragma endregion GapLescDHKey
+
+#pragma region GapLescOobData
+
+v8::Local<v8::Object> GapLescOobData::ToJs()
+{
+    Nan::EscapableHandleScope scope;
+    v8::Local<v8::Object> obj = Nan::New<v8::Object>();
+    Utility::Set(obj, "addr", GapAddr(&(native->addr)).ToJs());
+    Utility::Set(obj, "r", ConversionUtility::toJsValueArray(native->r, BLE_GAP_SEC_KEY_LEN));
+    Utility::Set(obj, "c", ConversionUtility::toJsValueArray(native->c, BLE_GAP_SEC_KEY_LEN));
+    return scope.Escape(obj);
+}
+
+ble_gap_lesc_oob_data_t *GapLescOobData::ToNative()
+{
+    if (Utility::IsNull(jsobj))
+    {
+        return nullptr;
+    }
+
+    auto lesc_oob_data = new ble_gap_lesc_oob_data_t();
+    memset(lesc_oob_data, 0, sizeof(ble_gap_lesc_oob_data_t));
+
+    auto p_r = ConversionUtility::getNativePointerToUint8(jsobj, "r");
+
+    for (auto i = 0; i < BLE_GAP_SEC_KEY_LEN; i++)
+    {
+        lesc_oob_data->r[i] = p_r[i];
+    }
+
+    auto p_c = ConversionUtility::getNativePointerToUint8(jsobj, "c");
+
+    for (auto i = 0; i < BLE_GAP_SEC_KEY_LEN; i++)
+    {
+        lesc_oob_data->c[i] = p_c[i];
+    }
+
+    std::unique_ptr<ble_gap_addr_t> native(GapAddr(ConversionUtility::getJsObject(jsobj, "addr")));
+    std::memcpy(&(lesc_oob_data->addr), native.get(), sizeof(ble_gap_addr_t));
+
+    return lesc_oob_data;
+}
+
+#pragma endregion GapLescOobData
+
+#pragma region GapConnected
+v8::Local<v8::Object> GapConnected::ToJs()
+{
+    Nan::EscapableHandleScope scope;
+    v8::Local<v8::Object> obj = Nan::New<v8::Object>();
+    BleDriverEvent::ToJs(obj);
+
+    Utility::Set(obj, "own_addr", GapAddr(&(evt->own_addr)).ToJs());
+    Utility::Set(obj, "peer_addr", GapAddr(&(evt->peer_addr)).ToJs());
+    Utility::Set(obj, "role", ConversionUtility::valueToJsString(evt->role, gap_role_map));
+    Utility::Set(obj, "conn_params", GapConnParams(&(evt->conn_params)).ToJs());
+    Utility::Set(obj, "irk_match", ConversionUtility::toJsBool(evt->irk_match));
+
+    if (evt->irk_match == 1)
+    {
+        Utility::Set(obj, "irk_idx", evt->irk_match_idx);
+    }
+
+    return scope.Escape(obj);
+}
+
+#pragma endregion GapConnected
+
+#pragma region GapDisconnected
+v8::Local<v8::Object> GapDisconnected::ToJs()
+{
+    Nan::EscapableHandleScope scope;
+    v8::Local<v8::Object> obj = Nan::New<v8::Object>();
+    BleDriverEvent::ToJs(obj);
+    Utility::Set(obj, "reason", evt->reason);
+    Utility::Set(obj, "reason_name", HciStatus::getHciStatus(evt->reason));
+
+    return scope.Escape(obj);
+}
+
+#pragma endregion GapDisconnected
+
+#pragma region GapConnParamUpdate
+v8::Local<v8::Object> GapConnParamUpdate::ToJs()
+{
+    Nan::EscapableHandleScope scope;
+    v8::Local<v8::Object> obj = Nan::New<v8::Object>();
+    BleDriverEvent::ToJs(obj);
+    Utility::Set(obj, "conn_params", GapConnParams(&(this->evt->conn_params)).ToJs());
+
+    return scope.Escape(obj);
+}
+
+#pragma endregion GapConnParamUpdate
+
+#pragma region GapSecParamsRequest
+
+v8::Local<v8::Object> GapSecParamsRequest::ToJs()
+{
+    Nan::EscapableHandleScope scope;
+    v8::Local<v8::Object> obj = Nan::New<v8::Object>();
+    BleDriverEvent::ToJs(obj);
+    Utility::Set(obj, "peer_params", GapSecParams(&(this->evt->peer_params)).ToJs());
+    return scope.Escape(obj);
+}
+
+#pragma endregion GapSecParamsRequest
+
+#pragma region GapSecInfoRequest
+
+v8::Local<v8::Object> GapSecInfoRequest::ToJs()
+{
+    Nan::EscapableHandleScope scope;
+    v8::Local<v8::Object> obj = Nan::New<v8::Object>();
+    BleDriverEvent::ToJs(obj);
+    Utility::Set(obj, "peer_addr", GapAddr(&(evt->peer_addr)).ToJs());
+    Utility::Set(obj, "master_id", GapMasterId(&(evt->master_id)).ToJs());
+    Utility::Set(obj, "enc_info", ConversionUtility::toJsBool(evt->enc_info));
+    Utility::Set(obj, "id_info", ConversionUtility::toJsBool(evt->id_info));
+    Utility::Set(obj, "sign_info", ConversionUtility::toJsBool(evt->sign_info));
+    return scope.Escape(obj);
+}
+
+#pragma endregion GapSecInfoRequest
+
+#pragma region GapPasskeyDisplay
+
+v8::Local<v8::Object> GapPasskeyDisplay::ToJs()
+{
+    Nan::EscapableHandleScope scope;
+    v8::Local<v8::Object> obj = Nan::New<v8::Object>();
+    BleDriverEvent::ToJs(obj);
+    Utility::Set(obj, "match_request", ConversionUtility::toJsBool(evt->match_request));
+    Utility::Set(obj, "passkey", ConversionUtility::toJsString(reinterpret_cast<char *>(evt->passkey), BLE_GAP_PASSKEY_LEN));
+    return scope.Escape(obj);
+}
+
+#pragma endregion GapPasskeyDisplay
+
+#pragma region GapKeyPressed
+
+v8::Local<v8::Object> GapKeyPressed::ToJs()
+{
+    Nan::EscapableHandleScope scope;
+    v8::Local<v8::Object> obj = Nan::New<v8::Object>();
+    BleDriverEvent::ToJs(obj);
+    Utility::Set(obj, "kp_not", ConversionUtility::valueToJsString(evt->kp_not, gap_kp_not_types));
+    return scope.Escape(obj);
+}
+
+#pragma endregion GapKeyPressed
+
+#pragma region GapAuthKeyRequest
+v8::Local<v8::Object> GapAuthKeyRequest::ToJs()
+{
+    Nan::EscapableHandleScope scope;
+    v8::Local<v8::Object> obj = Nan::New<v8::Object>();
+    BleDriverEvent::ToJs(obj);
+    Utility::Set(obj, "key_type", ConversionUtility::valueToJsString(evt->key_type, gap_auth_key_types));
+    return scope.Escape(obj);
+}
+#pragma endregion GapAuthKeyRequest
+
+#pragma region GapLESCDHKeyRequest
+v8::Local<v8::Object> GapLESCDHKeyRequest::ToJs()
+{
+    Nan::EscapableHandleScope scope;
+    v8::Local<v8::Object> obj = Nan::New<v8::Object>();
+    BleDriverEvent::ToJs(obj);
+    Utility::Set(obj, "oobd_req", ConversionUtility::toJsBool(evt->oobd_req));
+    Utility::Set(obj, "pk_peer", GapLescP256Pk(evt->p_pk_peer).ToJs());
+    return scope.Escape(obj);
+}
+#pragma endregion GapLESCDHKeyRequest
+
+#pragma region GapSecLevels
+
+v8::Local<v8::Object> GapSecLevels::ToJs()
+{
+    Nan::EscapableHandleScope scope;
+    v8::Local<v8::Object> obj = Nan::New<v8::Object>();
+    Utility::Set(obj, "lv1", ConversionUtility::toJsBool(native->lv1));
+    Utility::Set(obj, "lv2", ConversionUtility::toJsBool(native->lv2));
+    Utility::Set(obj, "lv3", ConversionUtility::toJsBool(native->lv3));
+    Utility::Set(obj, "lv4", ConversionUtility::toJsBool(native->lv4));
+    return scope.Escape(obj);
+}
+
+ble_gap_sec_levels_t *GapSecLevels::ToNative()
+{
+    if (Utility::IsNull(jsobj))
+    {
+        return nullptr;
+    }
+
+    auto sec_levels = new ble_gap_sec_levels_t();
+    memset(sec_levels, 0, sizeof(ble_gap_sec_levels_t));
+
+    sec_levels->lv1 = ConversionUtility::getNativeBool(jsobj, "lv1");
+    sec_levels->lv2 = ConversionUtility::getNativeBool(jsobj, "lv2");
+    sec_levels->lv3 = ConversionUtility::getNativeBool(jsobj, "lv3");
+    sec_levels->lv4 = ConversionUtility::getNativeBool(jsobj, "lv4");
+
+    return sec_levels;
+}
+
+#pragma endregion GapSecLevels
+
+#pragma region GapEncKey
+
+v8::Local<v8::Object> GapEncKey::ToJs()
+{
+    Nan::EscapableHandleScope scope;
+    v8::Local<v8::Object> obj = Nan::New<v8::Object>();
+    Utility::Set(obj, "enc_info", GapEncInfo(&native->enc_info).ToJs());
+    Utility::Set(obj, "master_id", GapMasterId(&native->master_id).ToJs());
+
+    return scope.Escape(obj);
+}
+
+ble_gap_enc_key_t *GapEncKey::ToNative()
+{
+    if (Utility::IsNull(jsobj))
+    {
+        return nullptr;
+    }
+
+    auto enc_key = new ble_gap_enc_key_t();
+    memset(enc_key, 0, sizeof(ble_gap_enc_key_t));
+
+    enc_key->enc_info = GapEncInfo(ConversionUtility::getJsObject(jsobj, "enc_info"));
+    enc_key->master_id = GapMasterId(ConversionUtility::getJsObject(jsobj, "master_id"));
+
+    return enc_key;
+}
+
+#pragma endregion GapEncKey
+
+#pragma region GapIdKey
+
+v8::Local<v8::Object> GapIdKey::ToJs()
+{
+    Nan::EscapableHandleScope scope;
+    v8::Local<v8::Object> obj = Nan::New<v8::Object>();
+    Utility::Set(obj, "id_info", GapIrk(&native->id_info).ToJs());
+    Utility::Set(obj, "id_addr_info", GapAddr(&native->id_addr_info).ToJs());
+
+    return scope.Escape(obj);
+}
+
+ble_gap_id_key_t *GapIdKey::ToNative()
+{
+    if (Utility::IsNull(jsobj))
+    {
+        return nullptr;
+    }
+
+    auto id_key = new ble_gap_id_key_t();
+    memset(id_key, 0, sizeof(ble_gap_id_key_t));
+
+    id_key->id_info = GapIrk(ConversionUtility::getJsObject(jsobj, "id_info"));
+    id_key->id_addr_info = GapAddr(ConversionUtility::getJsObject(jsobj, "id_addr_info"));
+
+    return id_key;
+}
+
+#pragma endregion GapIdKey
+
+#pragma region GapSecKeys
+
+v8::Local<v8::Object> GapSecKeys::ToJs()
+{
+    Nan::EscapableHandleScope scope;
+    v8::Local<v8::Object> obj = Nan::New<v8::Object>();
+
+    if (native == nullptr)
+    {
+        return scope.Escape(obj);
+    }
+
+    if (native->p_enc_key == nullptr)
+    {
+        Utility::Set(obj, "enc_key", Nan::Null());
+    }
+    else
+    {
+        Utility::Set(obj, "enc_key", GapEncKey(native->p_enc_key).ToJs());
+    }
+
+    if (native->p_id_key == nullptr)
+    {
+        Utility::Set(obj, "id_key", Nan::Null());
+    }
+    else
+    {
+        Utility::Set(obj, "id_key", GapIdKey(native->p_id_key).ToJs());
+    }
+
+    if (native->p_sign_key == nullptr)
+    {
+        Utility::Set(obj, "sign_key", Nan::Null());
+    }
+    else
+    {
+        Utility::Set(obj, "sign_key", GapSignInfo(native->p_sign_key).ToJs());
+    }
+
+    if (native->p_pk == nullptr)
+    {
+        Utility::Set(obj, "pk", Nan::Null());
+    }
+    else
+    {
+        Utility::Set(obj, "pk", GapLescP256Pk(native->p_pk).ToJs());
+    }
+
+    return scope.Escape(obj);
+}
+
+ble_gap_sec_keys_t *GapSecKeys::ToNative()
+{
+    if (Utility::IsNull(jsobj))
+    {
+        return nullptr;
+    }
+
+    auto keys = new ble_gap_sec_keys_t();
+    memset(keys, 0, sizeof(ble_gap_sec_keys_t));
+
+    keys->p_enc_key = GapEncKey(ConversionUtility::getJsObjectOrNull(jsobj, "enc_key"));
+    keys->p_id_key = GapIdKey(ConversionUtility::getJsObjectOrNull(jsobj, "id_key"));
+    keys->p_sign_key = GapSignInfo(ConversionUtility::getJsObjectOrNull(jsobj, "sign_key"));
+    keys->p_pk = GapLescP256Pk(ConversionUtility::getJsObjectOrNull(jsobj, "pk"));
+
+    return keys;
+}
+
+#pragma endregion GapSecKeys
+
+#pragma region GapSecKeyset
+
+v8::Local<v8::Object> GapSecKeyset::ToJs()
+{
+    Nan::EscapableHandleScope scope;
+    v8::Local<v8::Object> obj = Nan::New<v8::Object>();
+
+    if (native == nullptr)
+    {
+        return scope.Escape(obj);
+    }
+
+    Utility::Set(obj, "keys_own", GapSecKeys(&native->keys_own).ToJs());
+    Utility::Set(obj, "keys_peer", GapSecKeys(&native->keys_peer).ToJs());
+
+    return scope.Escape(obj);
+}
+
+ble_gap_sec_keyset_t *GapSecKeyset::ToNative()
+{
+    if (Utility::IsNull(jsobj))
+    {
+        return nullptr;
+    }
+
+    auto keyset = new ble_gap_sec_keyset_t();
+    memset(keyset, 0, sizeof(ble_gap_sec_keyset_t));
+
+    keyset->keys_own = GapSecKeys(ConversionUtility::getJsObject(jsobj, "keys_own"));
+    keyset->keys_peer = GapSecKeys(ConversionUtility::getJsObject(jsobj, "keys_peer"));
+
+    return keyset;
+}
+
+#pragma endregion GapSecKeyset
+
+#pragma region GapAuthStatus
+
+v8::Local<v8::Object> GapAuthStatus::ToJs()
+{
+    Nan::EscapableHandleScope scope;
+    v8::Local<v8::Object> obj = Nan::New<v8::Object>();
+    BleDriverEvent::ToJs(obj);
+    Utility::Set(obj, "auth_status", ConversionUtility::toJsNumber(evt->auth_status));
+    Utility::Set(obj, "auth_status_name", ConversionUtility::valueToJsString(evt->auth_status, gap_sec_status_map));
+    Utility::Set(obj, "error_src", ConversionUtility::toJsNumber(evt->error_src));
+    Utility::Set(obj, "error_src_name", ConversionUtility::valueToJsString(evt->error_src, gap_sec_status_sources_map));
+    Utility::Set(obj, "bonded", ConversionUtility::toJsBool(evt->bonded));
+    Utility::Set(obj, "sm1_levels", GapSecLevels(&(evt->sm1_levels)).ToJs());
+    Utility::Set(obj, "sm2_levels", GapSecLevels(&(evt->sm2_levels)).ToJs());
+    Utility::Set(obj, "kdist_own", GapSecKdist(&(evt->kdist_own)).ToJs());
+    Utility::Set(obj, "kdist_peer", GapSecKdist(&(evt->kdist_peer)).ToJs());
+
+    return scope.Escape(obj);
+}
+
+#pragma endregion GapAuthStatus
+
+#pragma region GapConnSecUpdate
+
+v8::Local<v8::Object> GapConnSecUpdate::ToJs()
+{
+    Nan::EscapableHandleScope scope;
+    v8::Local<v8::Object> obj = Nan::New<v8::Object>();
+    BleDriverEvent::ToJs(obj);
+    Utility::Set(obj, "conn_sec", GapConnSec(&(evt->conn_sec)).ToJs());
+    return scope.Escape(obj);
+}
+
+#pragma endregion GapConnSecUpdate
+
+#pragma region GapTimeout
+v8::Local<v8::Object> GapTimeout::ToJs()
+{
+    Nan::EscapableHandleScope scope;
+    v8::Local<v8::Object> obj = Nan::New<v8::Object>();
+    BleDriverEvent::ToJs(obj);
+    Utility::Set(obj, "src", evt->src);
+    Utility::Set(obj, "src_name", ConversionUtility::valueToJsString(evt->src, gap_timeout_sources_map));
+
+    return scope.Escape(obj);
+}
+
+#pragma endregion GapTimeout
+
+#pragma region GapRssiChanged
+v8::Local<v8::Object> GapRssiChanged::ToJs()
+{
+    Nan::EscapableHandleScope scope;
+    v8::Local<v8::Object> obj = Nan::New<v8::Object>();
+    BleDriverEvent::ToJs(obj);
+    Utility::Set(obj, "rssi", evt->rssi);
+
+    return scope.Escape(obj);
+}
+
+#pragma endregion GapRssiChanged
+
+#pragma region GapAdvReport
 v8::Local<v8::Object> GapAdvReport::ToJs()
 {
     Nan::EscapableHandleScope scope;
@@ -451,10 +1329,14 @@ v8::Local<v8::Object> GapAdvReport::ToJs()
                     std::cerr << "Wrong length of AD_TYPE :" << gap_ad_type_map[ad_type] << std::endl;
                 }
             }
-            else
+            else if ( gap_ad_type_map.find(ad_type) != gap_ad_type_map.end())
             {
                 // For other AD types, pass data as array without parsing
-                Utility::Set(data_obj, gap_ad_type_map[ad_type], ConversionUtility::toJsValueArray(data, ad_len - 1));
+                Utility::Set(data_obj, gap_ad_type_map[ad_type], ConversionUtility::toJsValueArray(data + pos + 1, ad_len - 1));
+            }
+            else
+            {
+                Utility::Set(data_obj, std::to_string(ad_type).c_str(), ConversionUtility::toJsValueArray(data + pos + 1, ad_len - 1));
             }
 
             pos += ad_len; // Jump to the next AD Type
@@ -464,13 +1346,25 @@ v8::Local<v8::Object> GapAdvReport::ToJs()
     return scope.Escape(obj);
 }
 
-//
-// GapAdvReport -- END --
-//
+#pragma endregion GapAdvReport
 
-//
-// GapScanReqReport -- START --
-//
+#pragma region GapSecRequest
+
+v8::Local<v8::Object> GapSecRequest::ToJs()
+{
+    Nan::EscapableHandleScope scope;
+    v8::Local<v8::Object> obj = Nan::New<v8::Object>();
+    BleDriverEvent::ToJs(obj);
+    Utility::Set(obj, "bond", ConversionUtility::toJsBool(evt->bond));
+    Utility::Set(obj, "mitm", ConversionUtility::toJsBool(evt->mitm));
+    Utility::Set(obj, "lesc", ConversionUtility::toJsBool(evt->lesc));
+    Utility::Set(obj, "keypress", ConversionUtility::toJsBool(evt->keypress));
+    return scope.Escape(obj);
+}
+
+#pragma endregion GapSecRequest
+
+#pragma region GapScanReqReport
 v8::Local<v8::Object> GapScanReqReport::ToJs()
 {
     Nan::EscapableHandleScope scope;
@@ -482,110 +1376,9 @@ v8::Local<v8::Object> GapScanReqReport::ToJs()
     return scope.Escape(obj);
 }
 
-//
-// GapScanReqReport -- END --
-//
+#pragma endregion GapScanReqReport
 
-//
-// GapConnected -- START --
-//
-v8::Local<v8::Object> GapConnected::ToJs()
-{
-    Nan::EscapableHandleScope scope;
-    v8::Local<v8::Object> obj = Nan::New<v8::Object>();
-    BleDriverEvent::ToJs(obj);
-
-    Utility::Set(obj, "own_addr", GapAddr(&(evt->own_addr)).ToJs());
-    Utility::Set(obj, "peer_addr", GapAddr(&(evt->peer_addr)).ToJs());
-    Utility::Set(obj, "role", ConversionUtility::valueToJsString(evt->role, gap_role_map));
-    Utility::Set(obj, "conn_params", GapConnParams(&(evt->conn_params)).ToJs());
-    Utility::Set(obj, "irk_match", ConversionUtility::toJsBool(evt->irk_match));
-
-    if (evt->irk_match == 1)
-    {
-        Utility::Set(obj, "irk_idx", evt->irk_match_idx);
-    }
-
-    return scope.Escape(obj);
-}
-
-//
-// GapConnected -- END --
-//
-
-//
-// GapDisconnected -- START --
-//
-v8::Local<v8::Object> GapDisconnected::ToJs()
-{
-    Nan::EscapableHandleScope scope;
-    v8::Local<v8::Object> obj = Nan::New<v8::Object>();
-    BleDriverEvent::ToJs(obj);
-    Utility::Set(obj, "reason", evt->reason);
-    Utility::Set(obj, "reason_name", HciStatus::getHciStatus(evt->reason));
-
-    return scope.Escape(obj);
-}
-
-//
-// GapDisconnected -- END --
-//
-
-//
-// GapTimeout -- START --
-//
-v8::Local<v8::Object> GapTimeout::ToJs()
-{
-    Nan::EscapableHandleScope scope;
-    v8::Local<v8::Object> obj = Nan::New<v8::Object>();
-    BleDriverEvent::ToJs(obj);
-    Utility::Set(obj, "src", evt->src);
-    Utility::Set(obj, "src_name", ConversionUtility::valueToJsString(evt->src, gap_timeout_sources_map));
-
-    return scope.Escape(obj);
-}
-
-//
-// GapTimeout -- END --
-//
-
-//
-// GapRssiChanged -- START --
-//
-v8::Local<v8::Object> GapRssiChanged::ToJs()
-{
-    Nan::EscapableHandleScope scope;
-    v8::Local<v8::Object> obj = Nan::New<v8::Object>();
-    BleDriverEvent::ToJs(obj);
-    Utility::Set(obj, "rssi", evt->rssi);
-
-    return scope.Escape(obj);
-}
-
-//
-// GapRssiChanged -- END --
-//
-
-//
-// GapConnParamUpdate -- START --
-//
-v8::Local<v8::Object> GapConnParamUpdate::ToJs()
-{
-    Nan::EscapableHandleScope scope;
-    v8::Local<v8::Object> obj = Nan::New<v8::Object>();
-    BleDriverEvent::ToJs(obj);
-    Utility::Set(obj, "conn_params", GapConnParams(&(this->evt->conn_params)).ToJs());
-
-    return scope.Escape(obj);
-}
-
-//
-// GapConnParamUpdate -- END --
-//
-
-//
-// GapConnParamUpdateRequest -- START --
-//
+#pragma region GapConnParamUpdateRequest
 v8::Local<v8::Object> GapConnParamUpdateRequest::ToJs()
 {
     Nan::EscapableHandleScope scope;
@@ -595,675 +1388,13 @@ v8::Local<v8::Object> GapConnParamUpdateRequest::ToJs()
     return scope.Escape(obj);
 }
 
-//
-// GapConnParamUpdateRequest -- END --
-//
+#pragma endregion GapConnParamUpdateRequest
 
+#pragma endregion Conversion methods to/from JavaScript/C++
 
-//
-// GapSecParamsRequest -- START --
-//
+#pragma region JavaScript function implementations
 
-v8::Local<v8::Object> GapSecParamsRequest::ToJs()
-{
-    Nan::EscapableHandleScope scope;
-    v8::Local<v8::Object> obj = Nan::New<v8::Object>();
-    BleDriverEvent::ToJs(obj);
-    Utility::Set(obj, "peer_params", GapSecParams(&(this->evt->peer_params)).ToJs());
-    return scope.Escape(obj);
-}
-
-//
-// GapSecParamsRequest -- END --
-//
-
-//
-// GapAuthStatus -- START --
-//
-
-v8::Local<v8::Object> GapAuthStatus::ToJs()
-{
-    Nan::EscapableHandleScope scope;
-    v8::Local<v8::Object> obj = Nan::New<v8::Object>();
-    BleDriverEvent::ToJs(obj);
-    Utility::Set(obj, "auth_status", ConversionUtility::toJsNumber(evt->auth_status));
-    Utility::Set(obj, "auth_status_name", ConversionUtility::valueToJsString(evt->auth_status, gap_sec_status_map));
-    Utility::Set(obj, "error_src", ConversionUtility::toJsNumber(evt->error_src));
-    Utility::Set(obj, "error_src_name", ConversionUtility::valueToJsString(evt->error_src, gap_sec_status_sources_map));
-    Utility::Set(obj, "bonded", ConversionUtility::toJsBool(evt->bonded));
-    Utility::Set(obj, "sm1_levels", GapSecLevels(&(evt->sm1_levels)).ToJs());
-    Utility::Set(obj, "sm2_levels", GapSecLevels(&(evt->sm2_levels)).ToJs());
-    Utility::Set(obj, "kdist_periph", GapSecKdist(&(evt->kdist_periph)).ToJs());
-    Utility::Set(obj, "kdist_central", GapSecKdist(&(evt->kdist_central)).ToJs());
-    return scope.Escape(obj);
-}
-
-//
-// GapAuthStatus -- END --
-//
-
-//
-// GapConnSecUpdate -- START --
-//
-
-v8::Local<v8::Object> GapConnSecUpdate::ToJs()
-{
-    Nan::EscapableHandleScope scope;
-    v8::Local<v8::Object> obj = Nan::New<v8::Object>();
-    BleDriverEvent::ToJs(obj);
-    Utility::Set(obj, "conn_sec", GapConnSec(&(evt->conn_sec)).ToJs());
-    return scope.Escape(obj);
-}
-
-//
-// GapConnSecUpdate -- END --
-//
-
-// GapSecInfoRequest -- START --
-
-v8::Local<v8::Object> GapSecInfoRequest::ToJs()
-{
-    Nan::EscapableHandleScope scope;
-    v8::Local<v8::Object> obj = Nan::New<v8::Object>();
-    BleDriverEvent::ToJs(obj);
-    Utility::Set(obj, "peer_addr", GapAddr(&(evt->peer_addr)).ToJs());
-    Utility::Set(obj, "master_id", GapMasterId(&(evt->master_id)).ToJs());
-    Utility::Set(obj, "enc_info", ConversionUtility::toJsBool(evt->enc_info));
-    Utility::Set(obj, "id_info", ConversionUtility::toJsBool(evt->id_info));
-    Utility::Set(obj, "sign_info", ConversionUtility::toJsBool(evt->sign_info));
-    return scope.Escape(obj);
-}
-
-// GapSecInfoRequest -- END --
-
-// GapSecRequest -- START --
-
-v8::Local<v8::Object> GapSecRequest::ToJs()
-{
-    Nan::EscapableHandleScope scope;
-    v8::Local<v8::Object> obj = Nan::New<v8::Object>();
-    BleDriverEvent::ToJs(obj);
-    Utility::Set(obj, "bond", ConversionUtility::toJsBool(evt->bond));
-    Utility::Set(obj, "mitm", ConversionUtility::toJsBool(evt->mitm));
-    return scope.Escape(obj);
-}
-
-// GapSecRequest -- END --
-
-//
-// GapSecParams -- START --
-//
-
-v8::Local<v8::Object> GapSecParams::ToJs()
-{
-    Nan::EscapableHandleScope scope;
-    v8::Local<v8::Object> obj = Nan::New<v8::Object>();
-    Utility::Set(obj, "bond", ConversionUtility::toJsBool(native->bond));
-    Utility::Set(obj, "mitm", ConversionUtility::toJsBool(native->mitm));
-    Utility::Set(obj, "io_caps", ConversionUtility::valueToJsString(native->io_caps, gap_io_caps_map));
-    Utility::Set(obj, "oob", ConversionUtility::toJsBool(native->oob));
-    Utility::Set(obj, "min_key_size", native->min_key_size);
-    Utility::Set(obj, "max_key_size", native->max_key_size);
-    Utility::Set(obj, "kdist_periph", GapSecKdist(&(native->kdist_periph)).ToJs());
-    Utility::Set(obj, "kdist_central", GapSecKdist(&(native->kdist_central)).ToJs());
-
-    return scope.Escape(obj);
-}
-
-ble_gap_sec_params_t *GapSecParams::ToNative()
-{
-    if (Utility::IsNull(jsobj))
-    {
-        return nullptr;
-    }
-
-    auto params = new ble_gap_sec_params_t();
-    memset(params, 0, sizeof(ble_gap_sec_params_t));
-
-    params->bond = ConversionUtility::getNativeBool(jsobj, "bond");
-    params->mitm = ConversionUtility::getNativeBool(jsobj, "mitm");
-
-    params->io_caps = ConversionUtility::getNativeUint8(jsobj, "io_caps");
-
-    params->oob = ConversionUtility::getNativeBool(jsobj, "oob");
-    params->min_key_size = ConversionUtility::getNativeUint8(jsobj, "min_key_size");
-    params->max_key_size = ConversionUtility::getNativeUint8(jsobj, "max_key_size");
-    params->kdist_periph = GapSecKdist(ConversionUtility::getJsObject(jsobj, "kdist_periph"));
-    params->kdist_central = GapSecKdist(ConversionUtility::getJsObject(jsobj, "kdist_central"));
-
-    return params;
-}
-
-//
-// GapSecParams -- END --
-//
-
-//
-// GapSecKdist -- START --
-//
-
-v8::Local<v8::Object> GapSecKdist::ToJs()
-{
-    Nan::EscapableHandleScope scope;
-    v8::Local<v8::Object> obj = Nan::New<v8::Object>();
-    Utility::Set(obj, "enc", ConversionUtility::toJsBool(native->enc));
-    Utility::Set(obj, "id", ConversionUtility::toJsBool(native->id));
-    Utility::Set(obj, "sign", ConversionUtility::toJsBool(native->sign));
-
-    return scope.Escape(obj);
-}
-
-ble_gap_sec_kdist_t *GapSecKdist::ToNative()
-{
-    if (Utility::IsNull(jsobj))
-    {
-        return nullptr;
-    }
-
-    auto kdist = new ble_gap_sec_kdist_t();
-    memset(kdist, 0, sizeof(ble_gap_sec_kdist_t));
-
-    kdist->enc = ConversionUtility::getNativeBool(jsobj, "enc");
-    kdist->id = ConversionUtility::getNativeBool(jsobj, "id");
-    kdist->sign = ConversionUtility::getNativeBool(jsobj, "sign");
-
-    return kdist;
-}
-
-//
-// GapSecKdist -- END --
-//
-
-//
-// GapSecKeyset -- START --
-//
-
-v8::Local<v8::Object> GapSecKeyset::ToJs()
-{
-    Nan::EscapableHandleScope scope;
-    v8::Local<v8::Object> obj = Nan::New<v8::Object>();
-    Utility::Set(obj, "keys_periph", GapSecKeys(&native->keys_periph).ToJs());
-    Utility::Set(obj, "keys_central", GapSecKeys(&native->keys_central).ToJs());
-
-    return scope.Escape(obj);
-}
-
-ble_gap_sec_keyset_t *GapSecKeyset::ToNative()
-{
-    if (Utility::IsNull(jsobj))
-    {
-        return nullptr;
-    }
-
-    auto keyset = new ble_gap_sec_keyset_t();
-    memset(keyset, 0, sizeof(ble_gap_sec_keyset_t));
-
-    keyset->keys_periph = GapSecKeys(ConversionUtility::getJsObject(jsobj, "keys_periph"));
-    keyset->keys_central = GapSecKeys(ConversionUtility::getJsObject(jsobj, "keys_central"));
-
-    return keyset;
-}
-
-//
-// GapSecKeyset -- END --
-//
-
-//
-// GapSecKeys -- START --
-//
-
-v8::Local<v8::Object> GapSecKeys::ToJs()
-{
-    Nan::EscapableHandleScope scope;
-    v8::Local<v8::Object> obj = Nan::New<v8::Object>();
-    if (native->p_enc_key == nullptr)
-    {
-        Utility::Set(obj, "enc_key", Nan::Null());
-    }
-    else
-    {
-       Utility::Set(obj, "enc_key", GapEncKey(native->p_enc_key).ToJs());
-    }
-
-    if (native->p_id_key == nullptr)
-    {
-        Utility::Set(obj, "id_key", Nan::Null());
-    }
-    else
-    {
-        Utility::Set(obj, "id_key", GapIdKey(native->p_id_key).ToJs());
-    }
-
-    if (native->p_sign_key == nullptr)
-    {
-        Utility::Set(obj, "sign_key", Nan::Null());
-    }
-    else
-    {
-        Utility::Set(obj, "sign_key", GapSignInfo(native->p_sign_key).ToJs());
-    }
-
-    return scope.Escape(obj);
-}
-
-ble_gap_sec_keys_t *GapSecKeys::ToNative()
-{
-    if (Utility::IsNull(jsobj))
-    {
-        return nullptr;
-    }
-
-    auto keys = new ble_gap_sec_keys_t();
-    memset(keys, 0, sizeof(ble_gap_sec_keys_t));
-
-    keys->p_enc_key = GapEncKey(ConversionUtility::getJsObjectOrNull(jsobj, "enc_key"));
-    keys->p_id_key = GapIdKey(ConversionUtility::getJsObjectOrNull(jsobj, "id_key"));
-    keys->p_sign_key = GapSignInfo(ConversionUtility::getJsObjectOrNull(jsobj, "sign_key"));
-
-    return keys;
-}
-
-//
-// GapSecKeys -- END --
-//
-
-//
-// GapEncKeys -- START --
-//
-
-v8::Local<v8::Object> GapEncKey::ToJs()
-{
-    Nan::EscapableHandleScope scope;
-    v8::Local<v8::Object> obj = Nan::New<v8::Object>();
-    Utility::Set(obj, "enc_info", GapEncInfo(&native->enc_info).ToJs());
-    Utility::Set(obj, "master_id", GapMasterId(&native->master_id).ToJs());
-
-    return scope.Escape(obj);
-}
-
-ble_gap_enc_key_t *GapEncKey::ToNative()
-{
-    if (Utility::IsNull(jsobj))
-    {
-        return nullptr;
-    }
-
-    auto enc_key = new ble_gap_enc_key_t();
-    memset(enc_key, 0, sizeof(ble_gap_enc_key_t));
-
-    enc_key->enc_info = GapEncInfo(ConversionUtility::getJsObject(jsobj, "enc_info"));
-    enc_key->master_id = GapMasterId(ConversionUtility::getJsObject(jsobj, "master_id"));
-
-    return enc_key;
-}
-
-//
-// GapEncKeys -- END --
-//
-
-//
-// GapIdKey -- START --
-//
-
-v8::Local<v8::Object> GapIdKey::ToJs()
-{
-    Nan::EscapableHandleScope scope;
-    v8::Local<v8::Object> obj = Nan::New<v8::Object>();
-    Utility::Set(obj, "id_info", GapIrk(&native->id_info).ToJs());
-    Utility::Set(obj, "id_addr_info", GapAddr(&native->id_addr_info).ToJs());
-
-    return scope.Escape(obj);
-}
-
-ble_gap_id_key_t *GapIdKey::ToNative()
-{
-    if (Utility::IsNull(jsobj))
-    {
-        return nullptr;
-    }
-
-    auto id_key = new ble_gap_id_key_t();
-    memset(id_key, 0, sizeof(ble_gap_id_key_t));
-
-    id_key->id_info = GapIrk(ConversionUtility::getJsObject(jsobj, "id_info"));
-    id_key->id_addr_info = GapAddr(ConversionUtility::getJsObject(jsobj, "id_addr_info"));
-
-    return id_key;
-}
-
-//
-// GapIdKey -- END --
-//
-
-//
-// GapSignInfo -- START --
-//
-
-v8::Local<v8::Object> GapSignInfo::ToJs()
-{
-    Nan::EscapableHandleScope scope;
-    v8::Local<v8::Object> obj = Nan::New<v8::Object>();
-    Utility::Set(obj, "csrk", ConversionUtility::toJsValueArray(native->csrk, BLE_GAP_SEC_KEY_LEN));
-
-    return scope.Escape(obj);
-}
-
-ble_gap_sign_info_t *GapSignInfo::ToNative()
-{
-    if (Utility::IsNull(jsobj))
-    {
-        return nullptr;
-    }
-
-    auto sign_info = new ble_gap_sign_info_t();
-    memset(sign_info, 0, sizeof(ble_gap_sign_info_t));
-
-    auto p_csrk = ConversionUtility::getNativePointerToUint8(jsobj, "csrk");
-
-    for (auto i = 0; i < BLE_GAP_SEC_KEY_LEN; i++)
-    {
-        sign_info->csrk[i] = p_csrk[i];
-    }
-
-    return sign_info;
-}
-
-//
-// GapSignInfo -- END --
-//
-
-//
-// GapIrk -- START --
-//
-
-v8::Local<v8::Object> GapIrk::ToJs()
-{
-    Nan::EscapableHandleScope scope;
-    v8::Local<v8::Object> obj = Nan::New<v8::Object>();
-    Utility::Set(obj, "irk", ConversionUtility::toJsValueArray(native->irk, BLE_GAP_SEC_KEY_LEN));
-    return scope.Escape(obj);
-}
-
-ble_gap_irk_t *GapIrk::ToNative()
-{
-    if (Utility::IsNull(jsobj))
-    {
-        return nullptr;
-    }
-
-    auto irk = new ble_gap_irk_t();
-    memset(irk, 0, sizeof(ble_gap_irk_t));
-
-    auto p_irk = ConversionUtility::getNativePointerToUint8(jsobj, "irk");
-
-    for (auto i = 0; i < BLE_GAP_SEC_KEY_LEN; i++)
-    {
-        irk->irk[i] = p_irk[i];
-    }
-
-    return irk;
-}
-
-//
-// GapIrk -- END --
-//
-
-//
-// GapEncInfo -- START --
-//
-
-v8::Local<v8::Object> GapEncInfo::ToJs()
-{
-    Nan::EscapableHandleScope scope;
-    v8::Local<v8::Object> obj = Nan::New<v8::Object>();
-    Utility::Set(obj, "ltk", ConversionUtility::toJsValueArray(native->ltk, BLE_GAP_SEC_KEY_LEN));
-    Utility::Set(obj, "auth", ConversionUtility::toJsBool(native->auth));
-    Utility::Set(obj, "ltk_len", native->ltk_len);
-    return scope.Escape(obj);
-}
-
-ble_gap_enc_info_t *GapEncInfo::ToNative()
-{
-    if (Utility::IsNull(jsobj))
-    {
-        return nullptr;
-    }
-
-    auto enc_info = new ble_gap_enc_info_t();
-    memset(enc_info, 0, sizeof(ble_gap_enc_info_t));
-
-    auto p_ltk = ConversionUtility::getNativePointerToUint8(jsobj, "ltk");
-
-    for (auto i = 0; i < BLE_GAP_SEC_KEY_LEN; i++)
-    {
-        enc_info->ltk[i] = p_ltk[i];
-    }
-
-    enc_info->auth = ConversionUtility::getNativeBool(jsobj, "auth");
-    enc_info->ltk_len = ConversionUtility::getNativeUint8(jsobj, "ltk_len");
-
-    return enc_info;
-}
-
-//
-// GapEncInfo -- END --
-//
-
-//
-// GapMasterId -- START --
-//
-
-v8::Local<v8::Object> GapMasterId::ToJs()
-{
-    Nan::EscapableHandleScope scope;
-    v8::Local<v8::Object> obj = Nan::New<v8::Object>();
-    Utility::Set(obj, "ediv", native->ediv);
-    Utility::Set(obj, "rand", ConversionUtility::toJsValueArray(native->rand, BLE_GAP_SEC_RAND_LEN));
-    return scope.Escape(obj);
-}
-
-ble_gap_master_id_t *GapMasterId::ToNative()
-{
-    if (Utility::IsNull(jsobj))
-    {
-        return nullptr;
-    }
-
-    auto master_id = new ble_gap_master_id_t();
-    memset(master_id, 0, sizeof(ble_gap_master_id_t));
-
-    master_id->ediv = ConversionUtility::getNativeUint16(jsobj, "ediv");
-
-
-    auto p_rand = ConversionUtility::getNativePointerToUint8(jsobj, "rand");
-
-    for (auto i = 0; i < BLE_GAP_SEC_RAND_LEN; i++)
-    {
-        master_id->rand[i] = p_rand[i];
-    }
-
-    return master_id;
-}
-
-//
-// GapMasterId -- END --
-//
-
-//
-// GapSecLevels -- START --
-//
-
-v8::Local<v8::Object> GapSecLevels::ToJs()
-{
-    Nan::EscapableHandleScope scope;
-    v8::Local<v8::Object> obj = Nan::New<v8::Object>();
-    Utility::Set(obj, "lv1", ConversionUtility::toJsBool(native->lv1));
-    Utility::Set(obj, "lv2", ConversionUtility::toJsBool(native->lv2));
-    Utility::Set(obj, "lv3", ConversionUtility::toJsBool(native->lv3));
-    return scope.Escape(obj);
-}
-
-ble_gap_sec_levels_t *GapSecLevels::ToNative()
-{
-    if (Utility::IsNull(jsobj))
-    {
-        return nullptr;
-    }
-
-    auto sec_levels = new ble_gap_sec_levels_t();
-    memset(sec_levels, 0, sizeof(ble_gap_sec_levels_t));
-
-    sec_levels->lv1 = ConversionUtility::getNativeBool(jsobj, "lv1");
-    sec_levels->lv2 = ConversionUtility::getNativeBool(jsobj, "lv2");
-    sec_levels->lv3 = ConversionUtility::getNativeBool(jsobj, "lv3");
-
-    return sec_levels;
-}
-
-//
-// GapSecLevels -- END --
-//
-
-//
-// GapConnSec -- START --
-//
-
-v8::Local<v8::Object> GapConnSec::ToJs()
-{
-    Nan::EscapableHandleScope scope;
-    v8::Local<v8::Object> obj = Nan::New<v8::Object>();
-    Utility::Set(obj, "sec_mode", GapConnSecMode(&(native->sec_mode)).ToJs());
-    Utility::Set(obj, "encr_key_size", native->encr_key_size);
-    return scope.Escape(obj);
-}
-
-ble_gap_conn_sec_t *GapConnSec::ToNative()
-{
-    if (Utility::IsNull(jsobj))
-    {
-        return nullptr;
-    }
-
-    auto conn_sec = new ble_gap_conn_sec_t();
-    memset(conn_sec, 0, sizeof(ble_gap_conn_sec_t));
-
-    conn_sec->sec_mode = GapConnSecMode(ConversionUtility::getJsObject(jsobj, "sec_mode"));
-    conn_sec->encr_key_size = ConversionUtility::getNativeUint8(jsobj, "encr_key_size");
-
-    return conn_sec;
-}
-
-//
-// GapConnSec -- END --
-//
-
-//
-// GapScanParams -- START --
-//
-
-v8::Local<v8::Object> GapScanParams::ToJs()
-{
-    Nan::EscapableHandleScope scope;
-    // Scan parameters are never retrieved from driver.
-    v8::Local<v8::Object> obj = Nan::New<v8::Object>();
-    return scope.Escape(obj);
-}
-
-ble_gap_scan_params_t *GapScanParams::ToNative()
-{
-    if (Utility::IsNull(jsobj))
-    {
-        return nullptr;
-    }
-
-    auto params = new ble_gap_scan_params_t();
-    memset(params, 0, sizeof(ble_gap_scan_params_t));
-
-    params->active = ConversionUtility::getNativeBool(jsobj, "active");
-    //params->selective = ConversionUtility::getNativeBool(jsobj, "selective");
-    //TODO: Add whitelist
-    params->interval = ConversionUtility::msecsToUnitsUint16(jsobj, "interval", ConversionUtility::ConversionUnit625ms);
-    params->window = ConversionUtility::msecsToUnitsUint16(jsobj, "window", ConversionUtility::ConversionUnit625ms);
-    params->timeout = ConversionUtility::getNativeUint16(jsobj, "timeout");
-
-    return params;
-}
-
-//
-// GapScanParams -- END --
-//
-
-//
-// GapAdvParams -- START --
-//
-
-v8::Local<v8::Object> GapAdvParams::ToJs()
-{
-    Nan::EscapableHandleScope scope;
-    // Advertisement parameters are never retrieved from driver.
-    v8::Local<v8::Object> obj = Nan::New<v8::Object>();
-    return scope.Escape(obj);
-}
-
-ble_gap_adv_params_t *GapAdvParams::ToNative()
-{
-    if (Utility::IsNull(jsobj))
-    {
-        return nullptr;
-    }
-
-    auto params = new ble_gap_adv_params_t();
-    memset(params, 0, sizeof(ble_gap_adv_params_t));
-
-    params->type = ConversionUtility::getNativeUint8(jsobj, "type");
-    // TODO: Add p_peer_addr
-    // params->p_peer_addr = ;
-    params->fp = ConversionUtility::getNativeUint8(jsobj, "fp");
-    // TODO: Add whitelist
-    params->interval = ConversionUtility::msecsToUnitsUint16(jsobj, "interval", ConversionUtility::ConversionUnit625ms);
-    params->timeout = ConversionUtility::getNativeUint16(jsobj, "timeout");
-    params->channel_mask = GapAdvChannelMask(ConversionUtility::getJsObject(jsobj, "channel_mask"));
-
-    return params;
-}
-
-//
-// GapAdvParams -- END --
-//
-
-//
-// GapAdvChannelMask -- START --
-//
-
-v8::Local<v8::Object> GapAdvChannelMask::ToJs()
-{
-    Nan::EscapableHandleScope scope;
-    // Channel Mask are never retrieved from driver.
-    v8::Local<v8::Object> obj = Nan::New<v8::Object>();
-    return scope.Escape(obj);
-}
-
-ble_gap_adv_ch_mask_t *GapAdvChannelMask::ToNative()
-{
-    if (Utility::IsNull(jsobj))
-    {
-        return nullptr;
-    }
-
-    auto mask = new ble_gap_adv_ch_mask_t();
-    memset(mask, 0, sizeof(ble_gap_adv_ch_mask_t));
-
-    mask->ch_37_off = ConversionUtility::getNativeBool(jsobj, "ch_37_off");
-    mask->ch_38_off = ConversionUtility::getNativeBool(jsobj, "ch_38_off");
-    mask->ch_39_off = ConversionUtility::getNativeBool(jsobj, "ch_39_off");
-
-    return mask;
-}
-
-//
-// GapAdvChannelMask -- END --
-//
-
+#pragma region GapSetAddress
 NAN_METHOD(Adapter::GapSetAddress)
 {
     auto obj = Nan::ObjectWrap::Unwrap<Adapter>(info.Holder());
@@ -1283,7 +1414,7 @@ NAN_METHOD(Adapter::GapSetAddress)
         callback = ConversionUtility::getCallbackFunction(info[argumentcount]);
         argumentcount++;
     }
-    catch (char const *error)
+    catch (std::string error)
     {
         v8::Local<v8::String> message = ErrorMessage::getTypeErrorMessage(argumentcount, error);
         Nan::ThrowTypeError(message);
@@ -1297,7 +1428,7 @@ NAN_METHOD(Adapter::GapSetAddress)
     {
         baton->address = GapAddr(addressObject);
     }
-    catch (char const *error)
+    catch (std::string error)
     {
         v8::Local<v8::String> message = ErrorMessage::getStructErrorMessage("address", error);
         Nan::ThrowTypeError(message);
@@ -1336,6 +1467,10 @@ void Adapter::AfterGapSetAddress(uv_work_t *req)
     delete baton;
 }
 
+#pragma endregion GapSetAddress
+
+#pragma region GapGetAddress
+
 NAN_METHOD(Adapter::GapGetAddress)
 {
     auto obj = Nan::ObjectWrap::Unwrap<Adapter>(info.Holder());
@@ -1347,7 +1482,7 @@ NAN_METHOD(Adapter::GapGetAddress)
         callback = ConversionUtility::getCallbackFunction(info[argumentcount]);
         argumentcount++;
     }
-    catch (char const *error)
+    catch (std::string error)
     {
         v8::Local<v8::String> message = ErrorMessage::getTypeErrorMessage(argumentcount, error);
         Nan::ThrowTypeError(message);
@@ -1395,6 +1530,10 @@ void Adapter::AfterGapGetAddress(uv_work_t *req)
     delete baton;
 }
 
+#pragma endregion GapGetAddress
+
+#pragma region GapUpdateConnectionParameters
+
 NAN_METHOD(Adapter::GapUpdateConnectionParameters)
 {
     auto obj = Nan::ObjectWrap::Unwrap<Adapter>(info.Holder());
@@ -1414,7 +1553,7 @@ NAN_METHOD(Adapter::GapUpdateConnectionParameters)
         callback = ConversionUtility::getCallbackFunction(info[argumentcount]);
         argumentcount++;
     }
-    catch (char const *error)
+    catch (std::string error)
     {
         v8::Local<v8::String> message = ErrorMessage::getTypeErrorMessage(argumentcount, error);
         Nan::ThrowTypeError(message);
@@ -1428,7 +1567,7 @@ NAN_METHOD(Adapter::GapUpdateConnectionParameters)
     {
         baton->connectionParameters = GapConnParams(connParamsObject);
     }
-    catch (char const *error)
+    catch (std::string error)
     {
         v8::Local<v8::String> message = ErrorMessage::getStructErrorMessage("connectionParameters", error);
         Nan::ThrowTypeError(message);
@@ -1469,6 +1608,10 @@ void Adapter::AfterGapUpdateConnectionParameters(uv_work_t *req)
     delete baton;
 }
 
+#pragma endregion GapUpdateConnectionParameters
+
+#pragma region GapDisconnect
+
 NAN_METHOD(Adapter::GapDisconnect)
 {
     auto obj = Nan::ObjectWrap::Unwrap<Adapter>(info.Holder());
@@ -1488,7 +1631,7 @@ NAN_METHOD(Adapter::GapDisconnect)
         callback = ConversionUtility::getCallbackFunction(info[argumentcount]);
         argumentcount++;
     }
-    catch (char const *error)
+    catch (std::string error)
     {
         v8::Local<v8::String> message = ErrorMessage::getTypeErrorMessage(argumentcount, error);
         Nan::ThrowTypeError(message);
@@ -1531,6 +1674,10 @@ void Adapter::AfterGapDisconnect(uv_work_t *req)
     delete baton;
 }
 
+#pragma endregion GapDisconnect
+
+#pragma region GapSetTXPower
+
 NAN_METHOD(Adapter::GapSetTXPower)
 {
     auto obj = Nan::ObjectWrap::Unwrap<Adapter>(info.Holder());
@@ -1546,7 +1693,7 @@ NAN_METHOD(Adapter::GapSetTXPower)
         callback = ConversionUtility::getCallbackFunction(info[argumentcount]);
         argumentcount++;
     }
-    catch (char const *error)
+    catch (std::string error)
     {
         v8::Local<v8::String> message = ErrorMessage::getTypeErrorMessage(argumentcount, error);
         Nan::ThrowTypeError(message);
@@ -1590,6 +1737,10 @@ void Adapter::AfterGapSetTXPower(uv_work_t *req)
     delete baton;
 }
 
+#pragma endregion GapSetTXPower
+
+#pragma region GapSetDeviceName
+
 NAN_METHOD(Adapter::GapSetDeviceName)
 {
     auto obj = Nan::ObjectWrap::Unwrap<Adapter>(info.Holder());
@@ -1609,7 +1760,7 @@ NAN_METHOD(Adapter::GapSetDeviceName)
         callback = ConversionUtility::getCallbackFunction(info[argumentcount]);
         argumentcount++;
     }
-    catch (char const *error)
+    catch (std::string error)
     {
         v8::Local<v8::String> message = ErrorMessage::getTypeErrorMessage(argumentcount, error);
         Nan::ThrowTypeError(message);
@@ -1624,7 +1775,7 @@ NAN_METHOD(Adapter::GapSetDeviceName)
     {
         baton->conn_sec_mode = GapConnSecMode(conn_sec_mode);
     }
-    catch (char const *error)
+    catch (std::string error)
     {
         v8::Local<v8::String> message = ErrorMessage::getStructErrorMessage("conn_sec_mode", error);
         Nan::ThrowTypeError(message);
@@ -1668,6 +1819,10 @@ void Adapter::AfterGapSetDeviceName(uv_work_t *req)
     delete baton;
 }
 
+#pragma endregion GapSetDeviceName
+
+#pragma region GapGetDeviceName
+
 NAN_METHOD(Adapter::GapGetDeviceName)
 {
     auto obj = Nan::ObjectWrap::Unwrap<Adapter>(info.Holder());
@@ -1679,7 +1834,7 @@ NAN_METHOD(Adapter::GapGetDeviceName)
         callback = ConversionUtility::getCallbackFunction(info[argumentcount]);
         argumentcount++;
     }
-    catch (char const *error)
+    catch (std::string error)
     {
         v8::Local<v8::String> message = ErrorMessage::getTypeErrorMessage(argumentcount, error);
         Nan::ThrowTypeError(message);
@@ -1731,6 +1886,10 @@ void Adapter::AfterGapGetDeviceName(uv_work_t *req)
     delete baton;
 }
 
+#pragma endregion GapGetDeviceName
+
+#pragma region GapStartRSSI
+
 NAN_METHOD(Adapter::GapStartRSSI)
 {
     auto obj = Nan::ObjectWrap::Unwrap<Adapter>(info.Holder());
@@ -1754,7 +1913,7 @@ NAN_METHOD(Adapter::GapStartRSSI)
         callback = ConversionUtility::getCallbackFunction(info[argumentcount]);
         argumentcount++;
     }
-    catch (char const *error)
+    catch (std::string error)
     {
         v8::Local<v8::String> message = ErrorMessage::getTypeErrorMessage(argumentcount, error);
         Nan::ThrowTypeError(message);
@@ -1798,6 +1957,10 @@ void Adapter::AfterGapStartRSSI(uv_work_t *req)
     delete baton;
 }
 
+#pragma endregion GapStartRSSI
+
+#pragma region GapStopRSSI
+
 NAN_METHOD(Adapter::GapStopRSSI)
 {
     auto obj = Nan::ObjectWrap::Unwrap<Adapter>(info.Holder());
@@ -1813,7 +1976,7 @@ NAN_METHOD(Adapter::GapStopRSSI)
         callback = ConversionUtility::getCallbackFunction(info[argumentcount]);
         argumentcount++;
     }
-    catch (char const *error)
+    catch (std::string error)
     {
         v8::Local<v8::String> message = ErrorMessage::getTypeErrorMessage(argumentcount, error);
         Nan::ThrowTypeError(message);
@@ -1855,6 +2018,10 @@ void Adapter::AfterGapStopRSSI(uv_work_t *req)
     delete baton;
 }
 
+#pragma endregion GapStopRSSI
+
+#pragma region GapStartScan
+
 NAN_METHOD(Adapter::GapStartScan)
 {
     auto obj = Nan::ObjectWrap::Unwrap<Adapter>(info.Holder());
@@ -1870,7 +2037,7 @@ NAN_METHOD(Adapter::GapStartScan)
         callback = ConversionUtility::getCallbackFunction(info[argumentcount]);
         argumentcount++;
     }
-    catch (char const *error)
+    catch (std::string error)
     {
         v8::Local<v8::String> message = ErrorMessage::getTypeErrorMessage(argumentcount, error);
         Nan::ThrowTypeError(message);
@@ -1914,6 +2081,10 @@ void Adapter::AfterGapStartScan(uv_work_t *req)
     delete baton;
 }
 
+#pragma endregion GapStartScan
+
+#pragma region GapStopScan
+
 NAN_METHOD(Adapter::GapStopScan)
 {
     auto obj = Nan::ObjectWrap::Unwrap<Adapter>(info.Holder());
@@ -1925,7 +2096,7 @@ NAN_METHOD(Adapter::GapStopScan)
         callback = ConversionUtility::getCallbackFunction(info[argumentcount]);
         argumentcount++;
     }
-    catch (char const *error)
+    catch (std::string error)
     {
         v8::Local<v8::String> message = ErrorMessage::getTypeErrorMessage(argumentcount, error);
         Nan::ThrowTypeError(message);
@@ -1966,6 +2137,10 @@ void Adapter::AfterGapStopScan(uv_work_t *req)
     delete baton;
 }
 
+#pragma endregion GapStopScan
+
+#pragma region GapConnect
+
 NAN_METHOD(Adapter::GapConnect)
 {
     auto obj = Nan::ObjectWrap::Unwrap<Adapter>(info.Holder());
@@ -1989,7 +2164,7 @@ NAN_METHOD(Adapter::GapConnect)
         callback = ConversionUtility::getCallbackFunction(info[argumentcount]);
         argumentcount++;
     }
-    catch (char const *error)
+    catch (std::string error)
     {
         v8::Local<v8::String> message = ErrorMessage::getTypeErrorMessage(argumentcount, error);
         Nan::ThrowTypeError(message);
@@ -2004,7 +2179,7 @@ NAN_METHOD(Adapter::GapConnect)
     {
         baton->address = GapAddr(address);
     }
-    catch (char const *error)
+    catch (std::string error)
     {
         v8::Local<v8::String> message = ErrorMessage::getStructErrorMessage("address", error);
         Nan::ThrowTypeError(message);
@@ -2015,7 +2190,7 @@ NAN_METHOD(Adapter::GapConnect)
     {
         baton->scan_params = GapScanParams(scan_params);
     }
-    catch (char const *error)
+    catch (std::string error)
     {
         v8::Local<v8::String> message = ErrorMessage::getStructErrorMessage("scan_params", error);
         Nan::ThrowTypeError(message);
@@ -2026,7 +2201,7 @@ NAN_METHOD(Adapter::GapConnect)
     {
         baton->conn_params = GapConnParams(conn_params);
     }
-    catch (char const *error)
+    catch (std::string error)
     {
         v8::Local<v8::String> message = ErrorMessage::getStructErrorMessage("conn_params", error);
         Nan::ThrowTypeError(message);
@@ -2064,6 +2239,10 @@ void Adapter::AfterGapConnect(uv_work_t *req)
     delete baton;
 }
 
+#pragma endregion GapConnect
+
+#pragma region GapCancelConnect
+
 NAN_METHOD(Adapter::GapCancelConnect)
 {
     auto obj = Nan::ObjectWrap::Unwrap<Adapter>(info.Holder());
@@ -2075,7 +2254,7 @@ NAN_METHOD(Adapter::GapCancelConnect)
         callback = ConversionUtility::getCallbackFunction(info[argumentcount]);
         argumentcount++;
     }
-    catch (char const *error)
+    catch (std::string error)
     {
         v8::Local<v8::String> message = ErrorMessage::getTypeErrorMessage(argumentcount, error);
         Nan::ThrowTypeError(message);
@@ -2116,6 +2295,9 @@ void Adapter::AfterGapCancelConnect(uv_work_t *req)
     delete baton;
 }
 
+#pragma endregion GapCancelConnect
+
+#pragma region GapGetRSSI
 NAN_METHOD(Adapter::GapGetRSSI)
 {
     auto obj = Nan::ObjectWrap::Unwrap<Adapter>(info.Holder());
@@ -2131,7 +2313,7 @@ NAN_METHOD(Adapter::GapGetRSSI)
         callback = ConversionUtility::getCallbackFunction(info[argumentcount]);
         argumentcount++;
     }
-    catch (char const *error)
+    catch (std::string error)
     {
         v8::Local<v8::String> message = ErrorMessage::getTypeErrorMessage(argumentcount, error);
         Nan::ThrowTypeError(message);
@@ -2180,6 +2362,10 @@ void Adapter::AfterGapGetRSSI(uv_work_t *req)
     delete baton;
 }
 
+#pragma endregion GapGetRSSI
+
+#pragma region GapStartAdvertising
+
 NAN_METHOD(Adapter::GapStartAdvertising)
 {
     auto obj = Nan::ObjectWrap::Unwrap<Adapter>(info.Holder());
@@ -2195,7 +2381,7 @@ NAN_METHOD(Adapter::GapStartAdvertising)
         callback = ConversionUtility::getCallbackFunction(info[argumentcount]);
         argumentcount++;
     }
-    catch (char const *error)
+    catch (std::string error)
     {
         v8::Local<v8::String> message = ErrorMessage::getTypeErrorMessage(argumentcount, error);
         Nan::ThrowTypeError(message);
@@ -2207,7 +2393,7 @@ NAN_METHOD(Adapter::GapStartAdvertising)
     {
         baton->p_adv_params = GapAdvParams(adv_params);
     }
-    catch (char const *error)
+    catch (std::string error)
     {
         v8::Local<v8::String> message = ErrorMessage::getStructErrorMessage("adv_params", error);
         Nan::ThrowTypeError(message);
@@ -2247,6 +2433,10 @@ void Adapter::AfterGapStartAdvertising(uv_work_t *req)
     delete baton;
 }
 
+#pragma endregion GapStartAdvertising
+
+#pragma region GapStopAdvertising
+
 NAN_METHOD(Adapter::GapStopAdvertising)
 {
     auto obj = Nan::ObjectWrap::Unwrap<Adapter>(info.Holder());
@@ -2258,7 +2448,7 @@ NAN_METHOD(Adapter::GapStopAdvertising)
         callback = ConversionUtility::getCallbackFunction(info[argumentcount]);
         argumentcount++;
     }
-    catch (char const *error)
+    catch (std::string error)
     {
         v8::Local<v8::String> message = ErrorMessage::getTypeErrorMessage(argumentcount, error);
         Nan::ThrowTypeError(message);
@@ -2299,6 +2489,10 @@ void Adapter::AfterGapStopAdvertising(uv_work_t *req)
     delete baton;
 }
 
+#pragma endregion GapStopAdvertising
+
+#pragma region GapGetConnectionSecurity
+
 NAN_METHOD(Adapter::GapGetConnectionSecurity)
 {
     auto obj = Nan::ObjectWrap::Unwrap<Adapter>(info.Holder());
@@ -2314,7 +2508,7 @@ NAN_METHOD(Adapter::GapGetConnectionSecurity)
         callback = ConversionUtility::getCallbackFunction(info[argumentcount]);
         argumentcount++;
     }
-    catch (char const *error)
+    catch (std::string error)
     {
         v8::Local<v8::String> message = ErrorMessage::getTypeErrorMessage(argumentcount, error);
         Nan::ThrowTypeError(message);
@@ -2360,6 +2554,10 @@ void Adapter::AfterGapGetConnectionSecurity(uv_work_t *req)
     delete baton;
 }
 
+#pragma endregion GapGetConnectionSecurity
+
+#pragma region GapEncrypt
+
 NAN_METHOD(Adapter::GapEncrypt)
 {
     auto obj = Nan::ObjectWrap::Unwrap<Adapter>(info.Holder());
@@ -2383,7 +2581,7 @@ NAN_METHOD(Adapter::GapEncrypt)
         callback = ConversionUtility::getCallbackFunction(info[argumentcount]);
         argumentcount++;
     }
-    catch (char const *error)
+    catch (std::string error)
     {
         v8::Local<v8::String> message = ErrorMessage::getTypeErrorMessage(argumentcount, error);
         Nan::ThrowTypeError(message);
@@ -2397,7 +2595,7 @@ NAN_METHOD(Adapter::GapEncrypt)
     {
         baton->master_id = GapMasterId(master_id_object);
     }
-    catch (char const *error)
+    catch (std::string error)
     {
         v8::Local<v8::String> message = ErrorMessage::getStructErrorMessage("master_id", error);
         Nan::ThrowTypeError(message);
@@ -2408,7 +2606,7 @@ NAN_METHOD(Adapter::GapEncrypt)
     {
         baton->enc_info = GapEncInfo(enc_info_object);
     }
-    catch (char const *error)
+    catch (std::string error)
     {
         v8::Local<v8::String> message = ErrorMessage::getStructErrorMessage("enc_info", error);
         Nan::ThrowTypeError(message);
@@ -2444,7 +2642,9 @@ void Adapter::AfterGapEncrypt(uv_work_t *req)
     baton->callback->Call(1, argv);
     delete baton;
 }
+#pragma endregion GapEncrypt
 
+#pragma region GapReplySecurityParameters
 NAN_METHOD(Adapter::GapReplySecurityParameters)
 {
     auto obj = Nan::ObjectWrap::Unwrap<Adapter>(info.Holder());
@@ -2472,7 +2672,7 @@ NAN_METHOD(Adapter::GapReplySecurityParameters)
         callback = ConversionUtility::getCallbackFunction(info[argumentcount]);
         argumentcount++;
     }
-    catch (char const *error)
+    catch (std::string error)
     {
         v8::Local<v8::String> message = ErrorMessage::getTypeErrorMessage(argumentcount, error);
         Nan::ThrowTypeError(message);
@@ -2482,11 +2682,12 @@ NAN_METHOD(Adapter::GapReplySecurityParameters)
     auto baton = new GapSecParamsReplyBaton(callback);
     baton->conn_handle = conn_handle;
     baton->sec_status = sec_status;
+
     try
     {
         baton->sec_params = GapSecParams(sec_params_object);
     }
-    catch (char const *error)
+    catch (std::string error)
     {
         v8::Local<v8::String> message = ErrorMessage::getStructErrorMessage("sec_params", error);
         Nan::ThrowTypeError(message);
@@ -2495,7 +2696,47 @@ NAN_METHOD(Adapter::GapReplySecurityParameters)
 
     try
     {
-        baton->sec_keyset = GapSecKeyset(sec_keyset_object);
+        ble_gap_sec_keyset_t *keyset = GapSecKeyset(sec_keyset_object);
+
+        if (keyset == nullptr)
+        {
+            keyset = new ble_gap_sec_keyset_t();
+
+            keyset->keys_own.p_enc_key = nullptr;
+            keyset->keys_own.p_id_key = nullptr;
+            keyset->keys_own.p_sign_key = nullptr;
+            keyset->keys_own.p_pk = nullptr;
+        }
+
+        if (keyset->keys_own.p_enc_key == nullptr)
+        {
+            keyset->keys_own.p_enc_key = new ble_gap_enc_key_t();
+        }
+
+        if (keyset->keys_own.p_id_key == nullptr)
+        {
+            keyset->keys_own.p_id_key = new ble_gap_id_key_t();
+        }
+
+        if (keyset->keys_own.p_sign_key == nullptr)
+        {
+            keyset->keys_own.p_sign_key = new ble_gap_sign_info_t();
+        }
+
+        if (keyset->keys_own.p_pk == nullptr)
+        {
+            keyset->keys_own.p_pk = new ble_gap_lesc_p256_pk_t();
+        }
+
+
+        keyset->keys_peer.p_enc_key = new ble_gap_enc_key_t();
+        keyset->keys_peer.p_id_key = new ble_gap_id_key_t();
+        keyset->keys_peer.p_sign_key = new ble_gap_sign_info_t();
+        keyset->keys_peer.p_pk = new ble_gap_lesc_p256_pk_t();
+
+        baton->sec_keyset = keyset;
+
+        obj->createSecurityKeyStorage(conn_handle, keyset);
     }
     catch (char const *)
     {
@@ -2503,14 +2744,6 @@ NAN_METHOD(Adapter::GapReplySecurityParameters)
         return;
     }
 
-//    baton->sec_keyset = new ble_gap_sec_keyset_t();
-//
-//    baton->sec_keyset->keys_central.p_enc_key = new ble_gap_enc_key_t();
-//    baton->sec_keyset->keys_central.p_id_key = new ble_gap_id_key_t ();
-//    baton->sec_keyset->keys_central.p_sign_key = new ble_gap_sign_info_t();
-//    baton->sec_keyset->keys_periph.p_enc_key = new ble_gap_enc_key_t();
-//    baton->sec_keyset->keys_periph.p_id_key = new ble_gap_id_key_t();
-//    baton->sec_keyset->keys_periph.p_sign_key = new ble_gap_sign_info_t();
     baton->adapter = obj->adapter;
 
     uv_queue_work(uv_default_loop(), baton->req, GapReplySecurityParameters, reinterpret_cast<uv_after_work_cb>(AfterGapReplySecurityParameters));
@@ -2544,13 +2777,24 @@ void Adapter::AfterGapReplySecurityParameters(uv_work_t *req)
     else
     {
         argv[0] = Nan::Undefined();
-        argv[1] = GapSecKeyset(baton->sec_keyset).ToJs();
+
+        if (baton->sec_keyset == nullptr)
+        {
+            argv[1] = Nan::Null();
+        }
+        else
+        {
+            argv[1] = GapSecKeyset(baton->sec_keyset).ToJs();
+        }
     }
 
     baton->callback->Call(2, argv);
     delete baton;
 }
 
+#pragma endregion GapReplySecurityParameters
+
+#pragma region GapReplySecurityInfo
 NAN_METHOD(Adapter::GapReplySecurityInfo)
 {
     auto obj = Nan::ObjectWrap::Unwrap<Adapter>(info.Holder());
@@ -2578,7 +2822,7 @@ NAN_METHOD(Adapter::GapReplySecurityInfo)
         callback = ConversionUtility::getCallbackFunction(info[argumentcount]);
         argumentcount++;
     }
-    catch (char const *error)
+    catch (std::string error)
     {
         v8::Local<v8::String> message = ErrorMessage::getTypeErrorMessage(argumentcount, error);
         Nan::ThrowTypeError(message);
@@ -2593,7 +2837,7 @@ NAN_METHOD(Adapter::GapReplySecurityInfo)
     {
         baton->enc_info = GapEncInfo(enc_info_object);
     }
-    catch (char const *error)
+    catch (std::string error)
     {
         v8::Local<v8::String> message = ErrorMessage::getStructErrorMessage("enc_info", error);
         Nan::ThrowTypeError(message);
@@ -2604,7 +2848,7 @@ NAN_METHOD(Adapter::GapReplySecurityInfo)
     {
         baton->id_info = GapIrk(id_info_object);
     }
-    catch (char const *error)
+    catch (std::string error)
     {
         v8::Local<v8::String> message = ErrorMessage::getStructErrorMessage("id_info", error);
         Nan::ThrowTypeError(message);
@@ -2615,7 +2859,7 @@ NAN_METHOD(Adapter::GapReplySecurityInfo)
     {
         baton->sign_info = GapSignInfo(sign_info_object);
     }
-    catch (char const *error)
+    catch (std::string error)
     {
         v8::Local<v8::String> message = ErrorMessage::getStructErrorMessage("sign_info", error);
         Nan::ThrowTypeError(message);
@@ -2652,6 +2896,10 @@ void Adapter::AfterGapReplySecurityInfo(uv_work_t *req)
     delete baton;
 }
 
+#pragma endregion GapReplySecurityInfo
+
+#pragma region GapAuthenticate
+
 NAN_METHOD(Adapter::GapAuthenticate)
 {
     auto obj = Nan::ObjectWrap::Unwrap<Adapter>(info.Holder());
@@ -2665,13 +2913,13 @@ NAN_METHOD(Adapter::GapAuthenticate)
         conn_handle = ConversionUtility::getNativeUint16(info[argumentcount]);
         argumentcount++;
 
-        sec_params = ConversionUtility::getJsObject(info[argumentcount]);
+        sec_params = ConversionUtility::getJsObjectOrNull(info[argumentcount]);
         argumentcount++;
 
         callback = ConversionUtility::getCallbackFunction(info[argumentcount]);
         argumentcount++;
     }
-    catch (char const *error)
+    catch (std::string error)
     {
         v8::Local<v8::String> message = ErrorMessage::getTypeErrorMessage(argumentcount, error);
         Nan::ThrowTypeError(message);
@@ -2685,7 +2933,7 @@ NAN_METHOD(Adapter::GapAuthenticate)
     {
         baton->p_sec_params = GapSecParams(sec_params);
     }
-    catch (char const *error)
+    catch (std::string error)
     {
         v8::Local<v8::String> message = ErrorMessage::getStructErrorMessage("sec_params", error);
         Nan::ThrowTypeError(message);
@@ -2723,6 +2971,10 @@ void Adapter::AfterGapAuthenticate(uv_work_t *req)
     baton->callback->Call(1, argv);
     delete baton;
 }
+
+#pragma endregion GapAuthenticate
+
+#pragma region GapSetAdvertisingData
 
 NAN_METHOD(Adapter::GapSetAdvertisingData)
 {
@@ -2767,7 +3019,7 @@ NAN_METHOD(Adapter::GapSetAdvertisingData)
         callback = ConversionUtility::getCallbackFunction(info[argumentcount]);
         argumentcount++;
     }
-    catch (char const *error)
+    catch (std::string error)
     {
         v8::Local<v8::String> message = ErrorMessage::getTypeErrorMessage(argumentcount, error);
         Nan::ThrowTypeError(message);
@@ -2812,6 +3064,10 @@ void Adapter::AfterGapSetAdvertisingData(uv_work_t *req)
     delete baton;
 }
 
+#pragma endregion GapSetAdvertisingData
+
+#pragma region GapSetPPCP
+
 NAN_METHOD(Adapter::GapSetPPCP)
 {
     auto obj = Nan::ObjectWrap::Unwrap<Adapter>(info.Holder());
@@ -2827,7 +3083,7 @@ NAN_METHOD(Adapter::GapSetPPCP)
         callback = ConversionUtility::getCallbackFunction(info[argumentcount]);
         argumentcount++;
     }
-    catch (char const *error)
+    catch (std::string error)
     {
         v8::Local<v8::String> message = ErrorMessage::getTypeErrorMessage(argumentcount, error);
         Nan::ThrowTypeError(message);
@@ -2840,7 +3096,7 @@ NAN_METHOD(Adapter::GapSetPPCP)
     {
         baton->p_conn_params = GapConnParams(connectionParameters);
     }
-    catch (char const *error)
+    catch (std::string error)
     {
         v8::Local<v8::String> message = ErrorMessage::getStructErrorMessage("setppcp", error);
         Nan::ThrowTypeError(message);
@@ -2880,6 +3136,9 @@ void Adapter::AfterGapSetPPCP(uv_work_t *req)
     delete baton;
 }
 
+#pragma endregion GapSetPPCP
+
+#pragma region GapGetPPCP
 
 NAN_METHOD(Adapter::GapGetPPCP)
 {
@@ -2892,7 +3151,7 @@ NAN_METHOD(Adapter::GapGetPPCP)
         callback = ConversionUtility::getCallbackFunction(info[argumentcount]);
         argumentcount++;
     }
-    catch (char const *error)
+    catch (std::string error)
     {
         v8::Local<v8::String> message = ErrorMessage::getTypeErrorMessage(argumentcount, error);
         Nan::ThrowTypeError(message);
@@ -2937,6 +3196,10 @@ void Adapter::AfterGapGetPPCP(uv_work_t *req)
     delete baton;
 }
 
+#pragma endregion GapGetPPCP
+
+#pragma region GapSetAppearance
+
 NAN_METHOD(Adapter::GapSetAppearance)
 {
     auto obj = Nan::ObjectWrap::Unwrap<Adapter>(info.Holder());
@@ -2952,7 +3215,7 @@ NAN_METHOD(Adapter::GapSetAppearance)
         callback = ConversionUtility::getCallbackFunction(info[argumentcount]);
         argumentcount++;
     }
-    catch (char const *error)
+    catch (std::string error)
     {
         v8::Local<v8::String> message = ErrorMessage::getTypeErrorMessage(argumentcount, error);
         Nan::ThrowTypeError(message);
@@ -2993,8 +3256,9 @@ void Adapter::AfterGapSetAppearance(uv_work_t *req)
     baton->callback->Call(1, argv);
     delete baton;
 }
+#pragma endregion GapSetAppearance
 
-
+#pragma region GapGetAppearance
 NAN_METHOD(Adapter::GapGetAppearance)
 {
     auto obj = Nan::ObjectWrap::Unwrap<Adapter>(info.Holder());
@@ -3006,7 +3270,7 @@ NAN_METHOD(Adapter::GapGetAppearance)
         callback = ConversionUtility::getCallbackFunction(info[argumentcount]);
         argumentcount++;
     }
-    catch (char const *error)
+    catch (std::string error)
     {
         v8::Local<v8::String> message = ErrorMessage::getTypeErrorMessage(argumentcount, error);
         Nan::ThrowTypeError(message);
@@ -3048,7 +3312,401 @@ void Adapter::AfterGapGetAppearance(uv_work_t *req)
     baton->callback->Call(2, argv);
     delete baton;
 }
+#pragma endregion GapGetAppearance
 
+#pragma region GapReplyAuthKey
+
+NAN_METHOD(Adapter::GapReplyAuthKey)
+{
+    auto obj = Nan::ObjectWrap::Unwrap<Adapter>(info.Holder());
+    uint16_t conn_handle;
+    uint8_t key_type;
+    uint8_t *key = nullptr;
+    v8::Local<v8::Function> callback;
+    auto argumentcount = 0;
+
+    try
+    {
+        conn_handle = ConversionUtility::getNativeUint16(info[argumentcount]);
+        argumentcount++;
+
+        key_type = ConversionUtility::getNativeUint8(info[argumentcount]);
+        argumentcount++;
+
+        v8::Local<v8::Object> keyobject = ConversionUtility::getJsObjectOrNull(info[argumentcount]);
+
+        if (!Utility::IsNull(keyobject))
+        {
+            key = ConversionUtility::getNativePointerToUint8(info[argumentcount]);
+        }
+
+        argumentcount++;
+
+        callback = ConversionUtility::getCallbackFunction(info[argumentcount]);
+        argumentcount++;
+    }
+    catch (std::string error)
+    {
+        v8::Local<v8::String> message = ErrorMessage::getTypeErrorMessage(argumentcount, error);
+        Nan::ThrowTypeError(message);
+        return;
+    }
+
+    if (key != nullptr && key_type == BLE_GAP_AUTH_KEY_TYPE_PASSKEY)
+    {                                                                                              
+        if (!Utility::EnsureAsciiNumbers(key, BLE_GAP_PASSKEY_LEN))
+        {
+            v8::Local<v8::String> message = ErrorMessage::getTypeErrorMessage(argumentcount, "ascii number");
+            Nan::ThrowTypeError(message);
+            delete key;
+            return;
+        }
+    }
+
+    auto baton = new GapReplyAuthKeyBaton(callback);
+    baton->adapter = obj->adapter;
+    baton->conn_handle = conn_handle;
+    baton->key_type = key_type;
+    baton->key = key;
+
+    uv_queue_work(uv_default_loop(), baton->req, GapReplyAuthKey, reinterpret_cast<uv_after_work_cb>(AfterGapReplyAuthKey));
+}
+
+// This runs in a worker thread (not Main Thread)
+void Adapter::GapReplyAuthKey(uv_work_t *req)
+{
+    auto baton = static_cast<GapReplyAuthKeyBaton *>(req->data);
+    baton->result = sd_ble_gap_auth_key_reply(baton->adapter, baton->conn_handle, baton->key_type, baton->key);
+}
+
+// This runs in Main Thread
+void Adapter::AfterGapReplyAuthKey(uv_work_t *req)
+{
+    Nan::HandleScope scope;
+
+    auto baton = static_cast<GapReplyAuthKeyBaton *>(req->data);
+    v8::Local<v8::Value> argv[1];
+
+    if (baton->result != NRF_SUCCESS)
+    {
+        argv[0] = ErrorMessage::getErrorMessage(baton->result, "replying with auth key");
+    }
+    else
+    {
+        argv[0] = Nan::Undefined();
+    }
+
+    baton->callback->Call(1, argv);
+    delete baton;
+}
+#pragma endregion GapReplyAuthKey
+
+#pragma region GapReplyDHKeyLESC
+
+NAN_METHOD(Adapter::GapReplyDHKeyLESC)
+{
+    auto obj = Nan::ObjectWrap::Unwrap<Adapter>(info.Holder());
+    uint16_t conn_handle;
+    uint8_t *key;
+    v8::Local<v8::Function> callback;
+    auto argumentcount = 0;
+
+    try
+    {
+        conn_handle = ConversionUtility::getNativeUint16(info[argumentcount]);
+        argumentcount++;
+
+        key = ConversionUtility::getNativePointerToUint8(info[argumentcount]);
+        argumentcount++;
+
+        callback = ConversionUtility::getCallbackFunction(info[argumentcount]);
+        argumentcount++;
+    }
+    catch (std::string error)
+    {
+        v8::Local<v8::String> message = ErrorMessage::getTypeErrorMessage(argumentcount, error);
+        Nan::ThrowTypeError(message);
+        return;
+    }
+
+    auto baton = new GapReplyDHKeyLESCBaton(callback);
+    baton->adapter = obj->adapter;
+    baton->conn_handle = conn_handle;
+
+    ble_gap_lesc_dhkey_t *dhkey = new ble_gap_lesc_dhkey_t();
+    memcpy(dhkey->key, key, BLE_GAP_LESC_DHKEY_LEN);
+    baton->dhkey = dhkey;
+    delete key;
+
+    uv_queue_work(uv_default_loop(), baton->req, GapReplyDHKeyLESC, reinterpret_cast<uv_after_work_cb>(AfterGapReplyDHKeyLESC));
+}
+
+// This runs in a worker thread (not Main Thread)
+void Adapter::GapReplyDHKeyLESC(uv_work_t *req)
+{
+    auto baton = static_cast<GapReplyDHKeyLESCBaton *>(req->data);
+    baton->result = sd_ble_gap_lesc_dhkey_reply(baton->adapter, baton->conn_handle, baton->dhkey);
+}
+
+// This runs in Main Thread
+void Adapter::AfterGapReplyDHKeyLESC(uv_work_t *req)
+{
+    Nan::HandleScope scope;
+
+    auto baton = static_cast<GapReplyDHKeyLESCBaton *>(req->data);
+    v8::Local<v8::Value> argv[1];
+
+    if (baton->result != NRF_SUCCESS)
+    {
+        argv[0] = ErrorMessage::getErrorMessage(baton->result, "replying with DH key (LESC)");
+    }
+    else
+    {
+        argv[0] = Nan::Undefined();
+    }
+
+    baton->callback->Call(1, argv);
+    delete baton->dhkey;
+    delete baton;
+}
+#pragma endregion GapReplyDHKeyLESC
+
+#pragma region GapNotifyKeypress
+
+NAN_METHOD(Adapter::GapNotifyKeypress)
+{
+    auto obj = Nan::ObjectWrap::Unwrap<Adapter>(info.Holder());
+    uint16_t conn_handle;
+    uint8_t kp_not;
+    v8::Local<v8::Function> callback;
+    auto argumentcount = 0;
+
+    try
+    {
+        conn_handle = ConversionUtility::getNativeUint16(info[argumentcount]);
+        argumentcount++;
+
+        kp_not = ConversionUtility::getNativeUint8(info[argumentcount]);
+        argumentcount++;
+
+        callback = ConversionUtility::getCallbackFunction(info[argumentcount]);
+        argumentcount++;
+    }
+    catch (std::string error)
+    {
+        v8::Local<v8::String> message = ErrorMessage::getTypeErrorMessage(argumentcount, error);
+        Nan::ThrowTypeError(message);
+        return;
+    }
+
+    auto baton = new GapNotifyKeypressBaton(callback);
+    baton->adapter = obj->adapter;
+    baton->conn_handle = conn_handle;
+    baton->kp_not = kp_not;
+
+    uv_queue_work(uv_default_loop(), baton->req, GapNotifyKeypress, reinterpret_cast<uv_after_work_cb>(AfterGapNotifyKeypress));
+}
+
+// This runs in a worker thread (not Main Thread)
+void Adapter::GapNotifyKeypress(uv_work_t *req)
+{
+    auto baton = static_cast<GapNotifyKeypressBaton *>(req->data);
+    baton->result = sd_ble_gap_keypress_notify(baton->adapter, baton->conn_handle, baton->kp_not);
+}
+
+// This runs in Main Thread
+void Adapter::AfterGapNotifyKeypress(uv_work_t *req)
+{
+    Nan::HandleScope scope;
+
+    auto baton = static_cast<GapNotifyKeypressBaton *>(req->data);
+    v8::Local<v8::Value> argv[1];
+
+    if (baton->result != NRF_SUCCESS)
+    {
+        argv[0] = ErrorMessage::getErrorMessage(baton->result, "notify keypress");
+    }
+    else
+    {
+        argv[0] = Nan::Undefined();
+    }
+
+    baton->callback->Call(1, argv);
+
+    delete baton;
+}
+#pragma endregion GapNotifyKeypress
+
+#pragma region GapGetLESCOOBData
+
+NAN_METHOD(Adapter::GapGetLESCOOBData)
+{
+    auto obj = Nan::ObjectWrap::Unwrap<Adapter>(info.Holder());
+    uint16_t conn_handle;
+    uint8_t *key;
+    ble_gap_lesc_p256_pk_t *p_pk_own = new ble_gap_lesc_p256_pk_t();
+    v8::Local<v8::Function> callback;
+    auto argumentcount = 0;
+
+    try
+    {
+        conn_handle = ConversionUtility::getNativeUint16(info[argumentcount]);
+        argumentcount++;
+
+        key = ConversionUtility::getNativePointerToUint8(info[argumentcount]);
+        argumentcount++;
+
+        callback = ConversionUtility::getCallbackFunction(info[argumentcount]);
+        argumentcount++;
+    }
+    catch (std::string error)
+    {
+        v8::Local<v8::String> message = ErrorMessage::getTypeErrorMessage(argumentcount, error);
+        Nan::ThrowTypeError(message);
+        return;
+    }
+
+    auto baton = new GapGetLESCOOBDataBaton(callback);
+    baton->adapter = obj->adapter;
+    baton->conn_handle = conn_handle;
+    
+    memcpy(p_pk_own->pk, key, BLE_GAP_LESC_P256_PK_LEN);
+    baton->p_pk_own = p_pk_own;
+    baton->p_oobd_own = new ble_gap_lesc_oob_data_t();
+
+    uv_queue_work(uv_default_loop(), baton->req, GapGetLESCOOBData, reinterpret_cast<uv_after_work_cb>(AfterGapGetLESCOOBData));
+}
+
+// This runs in a worker thread (not Main Thread)
+void Adapter::GapGetLESCOOBData(uv_work_t *req)
+{
+    auto baton = static_cast<GapGetLESCOOBDataBaton *>(req->data);
+    baton->result = sd_ble_gap_lesc_oob_data_get(baton->adapter, baton->conn_handle, baton->p_pk_own, baton->p_oobd_own);
+}
+
+// This runs in Main Thread
+void Adapter::AfterGapGetLESCOOBData(uv_work_t *req)
+{
+    Nan::HandleScope scope;
+
+    auto baton = static_cast<GapGetLESCOOBDataBaton *>(req->data);
+    v8::Local<v8::Value> argv[2];
+
+    if (baton->result != NRF_SUCCESS)
+    {
+        argv[0] = ErrorMessage::getErrorMessage(baton->result, "get lesc oob data");
+        argv[1] = Nan::Undefined();
+    }
+    else
+    {
+        argv[0] = Nan::Undefined();
+        argv[1] = GapLescOobData(baton->p_oobd_own);
+    }
+
+    baton->callback->Call(2, argv);
+
+    delete baton->p_pk_own;
+    delete baton->p_oobd_own;
+    delete baton;
+}
+#pragma endregion GapGetLESCOOBData
+
+#pragma region GapSetLESCOOBData
+
+NAN_METHOD(Adapter::GapSetLESCOOBData)
+{
+    auto obj = Nan::ObjectWrap::Unwrap<Adapter>(info.Holder());
+    uint16_t conn_handle;
+    v8::Local<v8::Object> p_oobd_own;
+    v8::Local<v8::Object> p_oobd_peer;
+    v8::Local<v8::Function> callback;
+    auto argumentcount = 0;
+
+    try
+    {
+        conn_handle = ConversionUtility::getNativeUint16(info[argumentcount]);
+        argumentcount++;
+
+        p_oobd_own = ConversionUtility::getJsObjectOrNull(info[argumentcount]);
+        argumentcount++;
+
+        p_oobd_peer = ConversionUtility::getJsObjectOrNull(info[argumentcount]);
+        argumentcount++;
+
+        callback = ConversionUtility::getCallbackFunction(info[argumentcount]);
+        argumentcount++;
+    }
+    catch (std::string error)
+    {
+        v8::Local<v8::String> message = ErrorMessage::getTypeErrorMessage(argumentcount, error);
+        Nan::ThrowTypeError(message);
+        return;
+    }
+
+    auto baton = new GapSetLESCOOBDataBaton(callback);
+    baton->adapter = obj->adapter;
+    baton->conn_handle = conn_handle;
+
+    try
+    {
+        baton->p_oobd_own = GapLescOobData(p_oobd_own);
+    }
+    catch (std::string error)
+    {
+        v8::Local<v8::String> message = ErrorMessage::getStructErrorMessage("p_oobd_own", error);
+        Nan::ThrowTypeError(message);
+        return;
+    }
+
+    try
+    {
+        baton->p_oobd_peer = GapLescOobData(p_oobd_peer);
+    }
+    catch (std::string error)
+    {
+        v8::Local<v8::String> message = ErrorMessage::getStructErrorMessage("p_oobd_peer", error);
+        Nan::ThrowTypeError(message);
+        return;
+    }
+
+    uv_queue_work(uv_default_loop(), baton->req, GapSetLESCOOBData, reinterpret_cast<uv_after_work_cb>(AfterGapSetLESCOOBData));
+}
+
+// This runs in a worker thread (not Main Thread)
+void Adapter::GapSetLESCOOBData(uv_work_t *req)
+{
+    auto baton = static_cast<GapSetLESCOOBDataBaton *>(req->data);
+    baton->result = sd_ble_gap_lesc_oob_data_set(baton->adapter, baton->conn_handle, baton->p_oobd_own, baton->p_oobd_peer);
+}
+
+// This runs in Main Thread
+void Adapter::AfterGapSetLESCOOBData(uv_work_t *req)
+{
+    Nan::HandleScope scope;
+
+    auto baton = static_cast<GapSetLESCOOBDataBaton *>(req->data);
+    v8::Local<v8::Value> argv[1];
+
+    if (baton->result != NRF_SUCCESS)
+    {
+        argv[0] = ErrorMessage::getErrorMessage(baton->result, "set lesc oob data");
+    }
+    else
+    {
+        argv[0] = Nan::Undefined();
+    }
+
+    baton->callback->Call(1, argv);
+
+    delete baton->p_oobd_own;
+    delete baton->p_oobd_peer;
+    delete baton;
+}
+#pragma endregion GapSetLESCOOBData
+
+#pragma endregion JavaScript function implementations
+
+#pragma region JavaScript constants from ble_gap.h
 extern "C" {
     void init_gap(Nan::ADDON_REGISTER_FUNCTION_ARGS_TYPE target)
     {
@@ -3062,7 +3720,9 @@ extern "C" {
         NODE_DEFINE_CONSTANT(target, BLE_GAP_EVT_SEC_PARAMS_REQUEST);
         NODE_DEFINE_CONSTANT(target, BLE_GAP_EVT_SEC_INFO_REQUEST);
         NODE_DEFINE_CONSTANT(target, BLE_GAP_EVT_PASSKEY_DISPLAY);
+        NODE_DEFINE_CONSTANT(target, BLE_GAP_EVT_KEY_PRESSED);
         NODE_DEFINE_CONSTANT(target, BLE_GAP_EVT_AUTH_KEY_REQUEST);
+        NODE_DEFINE_CONSTANT(target, BLE_GAP_EVT_LESC_DHKEY_REQUEST);
         NODE_DEFINE_CONSTANT(target, BLE_GAP_EVT_AUTH_STATUS);
         NODE_DEFINE_CONSTANT(target, BLE_GAP_EVT_CONN_SEC_UPDATE);
         NODE_DEFINE_CONSTANT(target, BLE_GAP_EVT_TIMEOUT);
@@ -3204,23 +3864,27 @@ extern "C" {
         NODE_DEFINE_CONSTANT(target, BLE_GAP_AUTH_KEY_TYPE_OOB); //Out Of Band data.
 
         /* BLE_GAP_SEC_STATUS GAP Security status */
-        NODE_DEFINE_CONSTANT(target, BLE_GAP_SEC_STATUS_SUCCESS); //Procedure completed with success.
-        NODE_DEFINE_CONSTANT(target, BLE_GAP_SEC_STATUS_TIMEOUT); //Procedure timed out.
-        NODE_DEFINE_CONSTANT(target, BLE_GAP_SEC_STATUS_PDU_INVALID); //Invalid PDU received.
-        NODE_DEFINE_CONSTANT(target, BLE_GAP_SEC_STATUS_RFU_RANGE1_BEGIN); //Reserved for Future Use range #1 begin.
-        NODE_DEFINE_CONSTANT(target, BLE_GAP_SEC_STATUS_RFU_RANGE1_END); //Reserved for Future Use range #1 end.
-        NODE_DEFINE_CONSTANT(target, BLE_GAP_SEC_STATUS_PASSKEY_ENTRY_FAILED); //Passkey entry failed (user cancelled or other).
-        NODE_DEFINE_CONSTANT(target, BLE_GAP_SEC_STATUS_OOB_NOT_AVAILABLE); //Out of Band Key not available.
-        NODE_DEFINE_CONSTANT(target, BLE_GAP_SEC_STATUS_AUTH_REQ); //Authentication requirements not met.
-        NODE_DEFINE_CONSTANT(target, BLE_GAP_SEC_STATUS_CONFIRM_VALUE); //Confirm value failed.
-        NODE_DEFINE_CONSTANT(target, BLE_GAP_SEC_STATUS_PAIRING_NOT_SUPP); //Pairing not supported.
-        NODE_DEFINE_CONSTANT(target, BLE_GAP_SEC_STATUS_ENC_KEY_SIZE); //Encryption key size.
-        NODE_DEFINE_CONSTANT(target, BLE_GAP_SEC_STATUS_SMP_CMD_UNSUPPORTED); //Unsupported SMP command.
-        NODE_DEFINE_CONSTANT(target, BLE_GAP_SEC_STATUS_UNSPECIFIED); //Unspecified reason.
-        NODE_DEFINE_CONSTANT(target, BLE_GAP_SEC_STATUS_REPEATED_ATTEMPTS); //Too little time elapsed since last attempt.
-        NODE_DEFINE_CONSTANT(target, BLE_GAP_SEC_STATUS_INVALID_PARAMS); //Invalid parameters.
-        NODE_DEFINE_CONSTANT(target, BLE_GAP_SEC_STATUS_RFU_RANGE2_BEGIN); //Reserved for Future Use range #2 begin.
-        NODE_DEFINE_CONSTANT(target, BLE_GAP_SEC_STATUS_RFU_RANGE2_END); //Reserved for Future Use range #2 end.
+        NODE_DEFINE_CONSTANT(target, BLE_GAP_SEC_STATUS_SUCCESS); // Procedure completed with success. 
+        NODE_DEFINE_CONSTANT(target, BLE_GAP_SEC_STATUS_TIMEOUT); // Procedure timed out. 
+        NODE_DEFINE_CONSTANT(target, BLE_GAP_SEC_STATUS_PDU_INVALID); // Invalid PDU received. 
+        NODE_DEFINE_CONSTANT(target, BLE_GAP_SEC_STATUS_RFU_RANGE1_BEGIN); // Reserved for Future Use range #1 begin. 
+        NODE_DEFINE_CONSTANT(target, BLE_GAP_SEC_STATUS_RFU_RANGE1_END); // Reserved for Future Use range #1 end. 
+        NODE_DEFINE_CONSTANT(target, BLE_GAP_SEC_STATUS_PASSKEY_ENTRY_FAILED); // Passkey entry failed (user cancelled or other). 
+        NODE_DEFINE_CONSTANT(target, BLE_GAP_SEC_STATUS_OOB_NOT_AVAILABLE); // Out of Band Key not available. 
+        NODE_DEFINE_CONSTANT(target, BLE_GAP_SEC_STATUS_AUTH_REQ); // Authentication requirements not met. 
+        NODE_DEFINE_CONSTANT(target, BLE_GAP_SEC_STATUS_CONFIRM_VALUE); // Confirm value failed. 
+        NODE_DEFINE_CONSTANT(target, BLE_GAP_SEC_STATUS_PAIRING_NOT_SUPP); // Pairing not supported.  
+        NODE_DEFINE_CONSTANT(target, BLE_GAP_SEC_STATUS_ENC_KEY_SIZE); // Encryption key size. 
+        NODE_DEFINE_CONSTANT(target, BLE_GAP_SEC_STATUS_SMP_CMD_UNSUPPORTED); // Unsupported SMP command. 
+        NODE_DEFINE_CONSTANT(target, BLE_GAP_SEC_STATUS_UNSPECIFIED); // Unspecified reason. 
+        NODE_DEFINE_CONSTANT(target, BLE_GAP_SEC_STATUS_REPEATED_ATTEMPTS); // Too little time elapsed since last attempt. 
+        NODE_DEFINE_CONSTANT(target, BLE_GAP_SEC_STATUS_INVALID_PARAMS); // Invalid parameters. 
+        NODE_DEFINE_CONSTANT(target, BLE_GAP_SEC_STATUS_DHKEY_FAILURE); // DHKey check failure. 
+        NODE_DEFINE_CONSTANT(target, BLE_GAP_SEC_STATUS_NUM_COMP_FAILURE); // Numeric Comparison failure. 
+        NODE_DEFINE_CONSTANT(target, BLE_GAP_SEC_STATUS_BR_EDR_IN_PROG); // BR/EDR pairing in progress. 
+        NODE_DEFINE_CONSTANT(target, BLE_GAP_SEC_STATUS_X_TRANS_KEY_DISALLOWED); // BR/EDR Link Key cannot be used for LE keys. 
+        NODE_DEFINE_CONSTANT(target, BLE_GAP_SEC_STATUS_RFU_RANGE2_BEGIN); // Reserved for Future Use range #2 begin. 
+        NODE_DEFINE_CONSTANT(target, BLE_GAP_SEC_STATUS_RFU_RANGE2_END); // Reserved for Future Use range #2 end. 
 
         /* BLE_GAP_SEC_STATUS_SOURCES GAP Security status sources */
         NODE_DEFINE_CONSTANT(target, BLE_GAP_SEC_STATUS_SOURCE_LOCAL); //Local failure.
@@ -3262,5 +3926,14 @@ extern "C" {
 
         /* GAP_SEC_MODES GAP Security Modes */
         NODE_DEFINE_CONSTANT(target, BLE_GAP_SEC_MODE); //No key (may be used to reject).
+
+        /* GAP Keypress Notification Types */
+        NODE_DEFINE_CONSTANT(target, BLE_GAP_KP_NOT_TYPE_PASSKEY_START);
+        NODE_DEFINE_CONSTANT(target, BLE_GAP_KP_NOT_TYPE_PASSKEY_DIGIT_IN);
+        NODE_DEFINE_CONSTANT(target, BLE_GAP_KP_NOT_TYPE_PASSKEY_DIGIT_OUT);
+        NODE_DEFINE_CONSTANT(target, BLE_GAP_KP_NOT_TYPE_PASSKEY_CLEAR);
+        NODE_DEFINE_CONSTANT(target, BLE_GAP_KP_NOT_TYPE_PASSKEY_END);
     }
 }
+
+#pragma endregion

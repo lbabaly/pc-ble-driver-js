@@ -14,6 +14,7 @@
 #include "common.h"
 
 #include <algorithm>
+#include <iostream>
 
 Nan::Persistent<v8::Function> Adapter::constructor;
 
@@ -73,8 +74,8 @@ extern "C" {
         }
         else
         {
+            std::cerr << "No AddOn adapter to process RPC event." << std::endl;
             std::terminate();
-            //TODO: Errormessage
         }
     }
 
@@ -88,8 +89,8 @@ extern "C" {
         }
         else
         {
+            std::cerr << "No AddOn adapter to process event interval callback." << std::endl;
             std::terminate();
-            //TODO: Errormessage
         }
     }
 }
@@ -100,20 +101,28 @@ void Adapter::initEventHandling(Nan::Callback *callback, uint32_t interval)
 
     // Setup event related functionality
     eventCallback = callback;
-    asyncEvent.data = static_cast<void *>(this);
+    asyncEvent->data = static_cast<void *>(this);
 
-    // If we already have an async handle we do not create a new one
-    if (!uv_is_active(reinterpret_cast<uv_handle_t *>(&asyncEvent)))
-    {
-        if (uv_async_init(uv_default_loop(), &asyncEvent, event_handler) != 0) std::terminate();
-    }
+    if (uv_async_init(uv_default_loop(), asyncEvent, event_handler) != 0) {
+            std::cerr << "Not able to create a new async event handler." << std::endl;
+            std::terminate();
+        }
 
     // Setup event interval functionality
     if (eventInterval > 0)
     {
-        eventIntervalTimer.data = static_cast<void *>(this);
-        if (uv_timer_init(uv_default_loop(), &eventIntervalTimer) != 0) std::terminate();
-        if (uv_timer_start(&eventIntervalTimer, event_interval_handler, eventInterval, eventInterval) != 0) std::terminate();
+        if (eventIntervalTimer != nullptr) {
+            eventIntervalTimer->data = static_cast<void *>(this);
+            if (uv_timer_init(uv_default_loop(), eventIntervalTimer) != 0) {
+            std::cerr << "Not able to create a new async event interval timer." << std::endl;
+            std::terminate();
+        }
+
+            if (uv_timer_start(eventIntervalTimer, event_interval_handler, eventInterval, eventInterval) != 0) {
+            std::cerr << "Not able to create a new event interval handler." << std::endl;
+            std::terminate();
+        }
+        }
     }
 }
 
@@ -128,6 +137,7 @@ extern "C" {
         }
         else
         {
+            std::cerr << "No AddOn adapter to process log event." << std::endl;
             std::terminate();
         }
     }
@@ -137,13 +147,18 @@ void Adapter::initLogHandling(Nan::Callback *callback)
 {
     // Setup event related functionality
     logCallback = callback;
-    asyncLog.data = static_cast<void *>(this);
+    asyncLog->data = static_cast<void *>(this);
 
-    // If we already have an async handle we do not create a new one
-    if (!uv_is_active(reinterpret_cast<uv_handle_t *>(&asyncLog)))
-    {
-        if (uv_async_init(uv_default_loop(), &asyncLog, log_handler) != 0) std::terminate();
+    if (asyncLog == nullptr)  {
+        std::cerr << "asyncLog is null, terminating." << std::endl;
+        std::terminate();
     }
+
+    if (uv_async_init(uv_default_loop(), asyncLog, log_handler) != 0)
+        {
+            std::cerr << "Not able to create a new event log handler." << std::endl;
+            std::terminate();
+        }
 }
 
 extern "C" {
@@ -157,8 +172,8 @@ extern "C" {
         }
         else
         {
+            std::cerr << "No AddOn adapter to process status event." << std::endl;
             std::terminate();
-            //TODO: Errormessage
         }
     }
 }
@@ -167,48 +182,63 @@ void Adapter::initStatusHandling(Nan::Callback *callback)
 {
     // Setup event related functionality
     statusCallback = callback;
-    asyncStatus.data = static_cast<void *>(this);
+    asyncStatus->data = static_cast<void *>(this);
 
-    // If we already have an async handle we do not create a new one
-    if (!uv_is_active(reinterpret_cast<uv_handle_t *>(&asyncStatus)))
-    {
-        if (uv_async_init(uv_default_loop(), &asyncStatus, status_handler) != 0) std::terminate();
-    }
+    if (uv_async_init(uv_default_loop(), asyncStatus, status_handler) != 0)
+        {
+            std::cerr << "Not able to create a new status handler." << std::endl;
+            std::terminate();
+        }
 }
 
 void Adapter::cleanUpV8Resources()
 {
-    closing = true;
+    uv_mutex_lock(adapterCloseMutex);
 
-    auto intervalTimerhandle = reinterpret_cast<uv_handle_t*>(&eventIntervalTimer);
+    if (asyncStatus != nullptr) {
+        auto handle = reinterpret_cast<uv_handle_t *>(asyncStatus);
+        uv_close(handle, [](uv_handle_t *handle) {
+            free(handle);
+        });
 
-    // Deallocate resources related to the event handling interval timer
-    if (uv_is_active(intervalTimerhandle) != 0)
-    {
-        if (uv_timer_stop(&eventIntervalTimer) != 0)
+        asyncStatus = nullptr;
+    }
+
+    if (eventIntervalTimer != nullptr) {
+        // Deallocate resources related to the event handling interval timer
+        if (uv_timer_stop(eventIntervalTimer) != 0)
         {
             std::terminate();
         }
+
+        auto handle = reinterpret_cast<uv_handle_t *>(eventIntervalTimer);
+        uv_close(handle, [](uv_handle_t *handle) {
+            free(handle);
+        });
+
+        eventIntervalTimer = nullptr;
     }
 
-    auto logHandle = reinterpret_cast<uv_handle_t *>(&asyncLog);
-    auto eventHandle = reinterpret_cast<uv_handle_t *>(&asyncEvent);
-    auto statusHandle = reinterpret_cast<uv_handle_t *>(&asyncStatus);
+    if (asyncEvent != nullptr) {
+        auto handle = reinterpret_cast<uv_handle_t *>(asyncEvent);
 
-    if (uv_is_active(logHandle))
-    {
-        uv_close(reinterpret_cast<uv_handle_t *>(&asyncLog), nullptr);
+        uv_close(handle, [](uv_handle_t *handle) {
+            free(handle);
+        });
+
+        asyncEvent = nullptr;
     }
 
-    if (uv_is_active(eventHandle)) 
-    {
-        uv_close(reinterpret_cast<uv_handle_t *>(&asyncEvent), nullptr);
+    if (asyncLog != nullptr) {
+        auto logHandle = reinterpret_cast<uv_handle_t *>(asyncLog);
+        uv_close(logHandle, [](uv_handle_t *handle) {
+            free(handle);
+        });
+
+        asyncLog = nullptr;
     }
-    
-    if (uv_is_active(statusHandle))
-    {
-        uv_close(reinterpret_cast<uv_handle_t *>(&asyncStatus), nullptr);
-    }
+
+    uv_mutex_unlock(adapterCloseMutex);
 }
 
 void Adapter::initGeneric(v8::Local<v8::FunctionTemplate> tpl)
@@ -244,6 +274,7 @@ void Adapter::initGap(v8::Local<v8::FunctionTemplate> tpl)
     Nan::SetPrototypeMethod(tpl, "gapStartAdvertising", GapStartAdvertising);
     Nan::SetPrototypeMethod(tpl, "gapStopAdvertising", GapStopAdvertising);
     Nan::SetPrototypeMethod(tpl, "gapSetAdvertisingData", GapSetAdvertisingData);
+    Nan::SetPrototypeMethod(tpl, "gapReplyAuthKey", GapReplyAuthKey);
     Nan::SetPrototypeMethod(tpl, "gapReplySecurityParameters", GapReplySecurityParameters);
     Nan::SetPrototypeMethod(tpl, "gapGetConnectionSecurity", GapGetConnectionSecurity);
     Nan::SetPrototypeMethod(tpl, "gapEncrypt", GapEncrypt);
@@ -253,6 +284,11 @@ void Adapter::initGap(v8::Local<v8::FunctionTemplate> tpl)
     Nan::SetPrototypeMethod(tpl, "gapGetPPCP", GapGetPPCP);
     Nan::SetPrototypeMethod(tpl, "gapSetAppearance", GapSetAppearance);
     Nan::SetPrototypeMethod(tpl, "gapGetAppearance", GapGetAppearance);
+
+    Nan::SetPrototypeMethod(tpl, "gapReplyLescDhKey", GapReplyDHKeyLESC);
+    Nan::SetPrototypeMethod(tpl, "gapNotifyKeypress", GapNotifyKeypress);
+    Nan::SetPrototypeMethod(tpl, "gapGetLescOobData", GapGetLESCOOBData);
+    Nan::SetPrototypeMethod(tpl, "gapSetLescOobData", GapSetLESCOOBData);
 }
 
 void Adapter::initGattC(v8::Local<v8::FunctionTemplate> tpl)
@@ -277,12 +313,11 @@ void Adapter::initGattS(v8::Local<v8::FunctionTemplate> tpl)
     Nan::SetPrototypeMethod(tpl, "gattsSystemAttributeSet", GattsSystemAttributeSet);
     Nan::SetPrototypeMethod(tpl, "gattsSetValue", GattsSetValue);
     Nan::SetPrototypeMethod(tpl, "gattsGetValue", GattsGetValue);
-    Nan::SetPrototypeMethod(tpl, "gattsReplyReadWriteAuthorize", GattsReplyReadWriteAuthorize);
+//    Nan::SetPrototypeMethod(tpl, "gattsReplyReadWriteAuthorize", GattsReplyReadWriteAuthorize);
 }
 
 Adapter::Adapter()
 {
-    adapters.push_back(this);
     adapter = nullptr;
 
     eventCallbackMaxCount = 0;
@@ -292,7 +327,20 @@ Adapter::Adapter()
 
     eventCallback = nullptr;
 
-    closing = false;
+    eventIntervalTimer = nullptr;
+
+    asyncEvent = nullptr;
+    asyncLog = nullptr;
+    asyncStatus = nullptr;
+
+    adapterCloseMutex = new uv_mutex_t();
+    if (uv_mutex_init(adapterCloseMutex) != 0)
+    {
+        std::cerr << "Not able to create adapterCloseMutex! Terminating." << std::endl;
+        std::terminate();
+    }
+
+    adapters.push_back(this);
 }
 
 Adapter::~Adapter()
@@ -302,6 +350,8 @@ Adapter::~Adapter()
 
     // Remove callbacks and cleanup uv_handle_t instances
     cleanUpV8Resources();
+
+    uv_mutex_destroy(adapterCloseMutex);
 }
 
 NAN_METHOD(Adapter::New)
@@ -360,4 +410,81 @@ void Adapter::addEventBatchStatistics(std::chrono::milliseconds duration)
     eventCallbackBatchEventTotalCount += eventCallbackBatchEventCounter;
     eventCallbackBatchEventCounter = 0;
     eventCallbackBatchNumber += 1;
+}
+
+void Adapter::createSecurityKeyStorage(const uint16_t connHandle, ble_gap_sec_keyset_t *keyset)
+{
+    ble_gap_sec_keyset_t *set = new ble_gap_sec_keyset_t();
+    std::memcpy(set, keyset, sizeof(ble_gap_sec_keyset_t));
+
+    keysetMap.insert(std::pair<uint16_t, ble_gap_sec_keyset_t *>(connHandle, set));
+}
+
+void Adapter::destroySecurityKeyStorage(const uint16_t connHandle)
+{
+    auto keys = keysetMap.find(connHandle);
+
+    if (keys == keysetMap.end())
+    {
+        return;
+    }
+
+    auto keyset = keys->second;
+
+    if (keyset->keys_own.p_enc_key != nullptr)
+    {
+        delete keyset->keys_own.p_enc_key;
+    }
+
+    if (keyset->keys_own.p_id_key != nullptr)
+    {
+        delete keyset->keys_own.p_id_key;
+    }
+
+    if (keyset->keys_own.p_sign_key != nullptr)
+    {
+        delete keyset->keys_own.p_sign_key;
+    }
+
+    if (keyset->keys_own.p_pk != nullptr)
+    {
+        delete keyset->keys_own.p_pk;
+    }
+
+    if (keyset->keys_peer.p_enc_key != nullptr)
+    {
+        delete keyset->keys_peer.p_enc_key;
+    }
+
+    if (keyset->keys_peer.p_id_key != nullptr)
+    {
+        delete keyset->keys_peer.p_id_key;
+    }
+
+    if (keyset->keys_peer.p_sign_key != nullptr)
+    {
+        delete keyset->keys_peer.p_sign_key;
+    }
+
+    if (keyset->keys_peer.p_pk != nullptr)
+    {
+        delete keyset->keys_peer.p_pk;
+    }
+
+    delete keyset;
+
+    keysetMap.erase(connHandle);
+}
+
+ble_gap_sec_keyset_t *Adapter::getSecurityKey(const uint16_t connHandle)
+{
+    auto keyset = keysetMap.find(connHandle);
+
+    if (keyset == keysetMap.end())
+    {
+        return 0;
+    }
+
+    return keyset->second;
+
 }

@@ -16,8 +16,11 @@
 #include "ble_app.h"
 #include "nrf_error.h"
 
+#include "ble_common.h"
+
 #include <memory>
 #include <iostream>
+#include <sstream>
 #include <cstring> // Do not remove! Required by gcc.
 
 SerializationTransport::SerializationTransport(Transport *dataLinkLayer, uint32_t response_timeout)
@@ -138,7 +141,11 @@ void SerializationTransport::eventHandlingRunner()
         {
             eventData_t eventData = eventQueue.front();
             eventQueue.pop();
-            // Allocate memory to store decoded event including an unkown quantity of padding
+            // Allocate memory to store decoded event including an unknown quantity of padding
+
+            // Set security context
+            BLESecurityContext context(this);
+
             uint32_t possibleEventLength = 512;
             std::unique_ptr<ble_evt_t> event(static_cast<ble_evt_t*>(std::malloc(possibleEventLength)));
             uint32_t errCode = ble_event_dec(eventData.data, eventData.dataLength, event.get(), &possibleEventLength);
@@ -146,6 +153,13 @@ void SerializationTransport::eventHandlingRunner()
             if (eventCallback != nullptr && errCode == NRF_SUCCESS)
             {
                 eventCallback(event.get());
+            }
+
+            if (errCode != NRF_SUCCESS)
+            {
+                std::stringstream logMessage;
+                logMessage << "Failed to decode event, error code is " << errCode << "." << std::endl;
+                logCallback(SD_RPC_LOG_ERROR, logMessage.str().c_str());
             }
 
             free(eventData.data);

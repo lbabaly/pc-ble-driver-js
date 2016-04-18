@@ -15,6 +15,7 @@
 
 #include <nan.h>
 #include <chrono>
+#include <map>
 
 #include "sd_rpc.h"
 
@@ -142,6 +143,13 @@ private:
     ADAPTER_METHOD_DEFINITIONS(GapGetPPCP);
     ADAPTER_METHOD_DEFINITIONS(GapSetAppearance);
     ADAPTER_METHOD_DEFINITIONS(GapGetAppearance);
+    ADAPTER_METHOD_DEFINITIONS(GapReplyAuthKey);
+    ADAPTER_METHOD_DEFINITIONS(GapReplyDHKeyLESC);
+
+    ADAPTER_METHOD_DEFINITIONS(GapNotifyKeypress);
+    ADAPTER_METHOD_DEFINITIONS(GapGetLESCOOBData);
+
+    ADAPTER_METHOD_DEFINITIONS(GapSetLESCOOBData);
 
     // Gattc async mehtods
     ADAPTER_METHOD_DEFINITIONS(GattcDiscoverPrimaryServices);
@@ -162,7 +170,7 @@ private:
     ADAPTER_METHOD_DEFINITIONS(GattsSystemAttributeSet);
     ADAPTER_METHOD_DEFINITIONS(GattsSetValue);
     ADAPTER_METHOD_DEFINITIONS(GattsGetValue);
-    ADAPTER_METHOD_DEFINITIONS(GattsReplyReadWriteAuthorize);
+    // ADAPTER_METHOD_DEFINITIONS(GattsReplyReadWriteAuthorize);
 
     static void initGeneric(v8::Local<v8::FunctionTemplate> tpl);
     static void initGap(v8::Local<v8::FunctionTemplate> tpl);
@@ -171,6 +179,12 @@ private:
 
     void dispatchEvents();
     static uint32_t enableBLE(adapter_t *adapter);
+
+    void createSecurityKeyStorage(const uint16_t connHandle, ble_gap_sec_keyset_t *keyset);
+    void destroySecurityKeyStorage(const uint16_t connHandle);
+    ble_gap_sec_keyset_t *getSecurityKey(const uint16_t connHandle);
+
+    std::map<uint16_t, ble_gap_sec_keyset_t *> keysetMap;
 
     adapter_t *adapter;
     EventQueue eventQueue;
@@ -183,11 +197,13 @@ private:
 
     // Interval to use for sending BLE driver events to JavaScript. If 0 events will be sent as soon as they are received from the BLE driver.
     uint32_t eventInterval;
-    uv_timer_t eventIntervalTimer;
-    uv_async_t asyncEvent;
+    uv_timer_t* eventIntervalTimer;
+    uv_async_t* asyncEvent;
 
-    uv_async_t asyncLog;
-    uv_async_t asyncStatus;
+    uv_async_t* asyncLog;
+    uv_async_t* asyncStatus;
+
+    uv_mutex_t* adapterCloseMutex;
 
     // Statistics:
     // Accumulated deltas for event callbacks done to the driver
@@ -199,7 +215,5 @@ private:
     uint32_t eventCallbackBatchEventCounter;
     uint32_t eventCallbackBatchEventTotalCount;
     uint32_t eventCallbackBatchNumber;
-
-    bool closing;
 };
 #endif

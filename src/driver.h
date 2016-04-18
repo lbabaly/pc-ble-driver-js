@@ -33,6 +33,51 @@ NAN_INLINE sd_rpc_parity_t ToParityEnum(const v8::Handle<v8::String>& str);
 NAN_INLINE sd_rpc_flow_control_t ToFlowControlEnum(const v8::Handle<v8::String>& str);
 NAN_INLINE sd_rpc_log_severity_t ToLogSeverityEnum(const v8::Handle<v8::String>& str);
 
+class BandwidthCountParameters : public BleToJs<ble_conn_bw_count_t>
+{
+public:
+    explicit BandwidthCountParameters(ble_conn_bw_count_t *countParamters) : BleToJs<ble_conn_bw_count_t>(countParamters) {}
+    explicit BandwidthCountParameters(v8::Local<v8::Object> js) : BleToJs<ble_conn_bw_count_t>(js) {}
+    virtual ~BandwidthCountParameters() {}
+
+    v8::Local<v8::Object> ToJs() override;
+    ble_conn_bw_count_t *ToNative() override;
+};
+
+
+class BandwidthGlobalMemoryPool : public BleToJs<ble_conn_bw_counts_t>
+{
+public:
+    explicit BandwidthGlobalMemoryPool(ble_conn_bw_counts_t *enable_params) : BleToJs<ble_conn_bw_counts_t>(enable_params) {}
+    explicit BandwidthGlobalMemoryPool(v8::Local<v8::Object> js) : BleToJs<ble_conn_bw_counts_t>(js) {}
+    virtual ~BandwidthGlobalMemoryPool() {}
+
+    v8::Local<v8::Object> ToJs() override;
+    ble_conn_bw_counts_t *ToNative() override;
+};
+
+class CommonEnableParameters : public BleToJs<ble_common_enable_params_t>
+{
+public:
+    explicit CommonEnableParameters(ble_common_enable_params_t *enable_params) : BleToJs<ble_common_enable_params_t>(enable_params) {}
+    explicit CommonEnableParameters(v8::Local<v8::Object> js) : BleToJs<ble_common_enable_params_t>(js) {}
+    virtual ~CommonEnableParameters() {}
+
+    v8::Local<v8::Object> ToJs() override;
+    ble_common_enable_params_t *ToNative() override;
+};
+
+class EnableParameters : public BleToJs<ble_enable_params_t>
+{
+public:
+    explicit EnableParameters(ble_enable_params_t *enable_params) : BleToJs<ble_enable_params_t>(enable_params) {}
+    explicit EnableParameters(v8::Local<v8::Object> js) : BleToJs<ble_enable_params_t>(js) {}
+    virtual ~EnableParameters() {}
+
+    v8::Local<v8::Object> ToJs() override;
+    ble_enable_params_t *ToNative() override;
+};
+     
 class Version : public BleToJs<ble_version_t>
 {
 public:
@@ -167,7 +212,8 @@ public:
 struct EnableBLEBaton : public Baton {
 public:
     BATON_CONSTRUCTOR(EnableBLEBaton)
-    Adapter *mainObject;
+    ble_enable_params_t *enable_params;
+    uint32_t app_ram_base;
 };
 
 

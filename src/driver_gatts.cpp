@@ -19,6 +19,27 @@
 
 #include <iostream>
 
+v8::Local<v8::Object> GattsEnableParameters::ToJs()
+{
+    Nan::EscapableHandleScope scope;
+    v8::Local<v8::Object> obj = Nan::New<v8::Object>();
+
+    Utility::Set(obj, "service_changed", native->service_changed);
+    Utility::Set(obj, "attr_tab_size", native->attr_tab_size);
+
+    return scope.Escape(obj);
+}
+
+ble_gatts_enable_params_t *GattsEnableParameters::ToNative()
+{
+    auto enableParams = new ble_gatts_enable_params_t();
+
+    enableParams->service_changed = ConversionUtility::getNativeBool(jsobj, "service_changed");
+    enableParams->attr_tab_size = ConversionUtility::getNativeUint32(jsobj, "attr_tab_size");
+
+    return enableParams;
+}
+
 ble_gatts_attr_md_t *GattsAttributeMetadata::ToNative()
 {
     if (Utility::IsNull(jsobj))
@@ -162,21 +183,7 @@ v8::Local<v8::Object> GattsValue::ToJs()
     return scope.Escape(obj);
 }
 
-v8::Local<v8::Object> GattsAttributeContext::ToJs()
-{
-    Nan::EscapableHandleScope scope;
-    v8::Local<v8::Object> obj = Nan::New<v8::Object>();
-
-    Utility::Set(obj, "srvc_uuid", BleUUID(&native->srvc_uuid).ToJs());
-    Utility::Set(obj, "char_uuid", BleUUID(&native->char_uuid).ToJs());
-    Utility::Set(obj, "desc_uuid", BleUUID(&native->desc_uuid).ToJs());
-    Utility::Set(obj, "srvc_handle", ConversionUtility::toJsNumber(native->srvc_handle));
-    Utility::Set(obj, "value_handle", ConversionUtility::toJsNumber(native->value_handle));
-    Utility::Set(obj, "type", ConversionUtility::toJsNumber(native->type));
-
-    return scope.Escape(obj);
-}
-
+#if 0 // TODO: evaluate if we need this
 v8::Local<v8::Object> GattsReadAuthorizeParameters::ToJs()
 {
     Nan::EscapableHandleScope scope;
@@ -255,6 +262,7 @@ ble_gatts_rw_authorize_reply_params_t *GattGattsReplyReadWriteAuthorizeParams::T
 
     return params;
 }
+#endif
 
 v8::Local<v8::Object> GattsWriteEvent::ToJs()
 {
@@ -264,7 +272,7 @@ v8::Local<v8::Object> GattsWriteEvent::ToJs()
 
     Utility::Set(obj, "handle", ConversionUtility::toJsNumber(evt->handle));
     Utility::Set(obj, "op", ConversionUtility::toJsNumber(evt->op));
-    Utility::Set(obj, "context", GattsAttributeContext(&evt->context).ToJs());
+    Utility::Set(obj, "uuid", BleUUID(&evt->uuid).ToJs());
     Utility::Set(obj, "offset", ConversionUtility::toJsNumber(evt->offset));
     Utility::Set(obj, "len", ConversionUtility::toJsNumber(evt->len));
     Utility::Set(obj, "data", ConversionUtility::toJsValueArray(evt->data, evt->len));
@@ -278,7 +286,7 @@ v8::Local<v8::Object> GattsReadEvent::ToJs()
     v8::Local<v8::Object> obj = Nan::New<v8::Object>();
 
     Utility::Set(obj, "handle", ConversionUtility::toJsNumber(native->handle));
-    Utility::Set(obj, "context", GattsAttributeContext(&native->context).ToJs());
+    Utility::Set(obj, "uuid", BleUUID(&native->uuid).ToJs());
     Utility::Set(obj, "offset", ConversionUtility::toJsNumber(native->offset));
 
     return scope.Escape(obj);
@@ -373,7 +381,7 @@ NAN_METHOD(Adapter::GattsAddService)
         callback = ConversionUtility::getCallbackFunction(info[argumentcount]);
         argumentcount++;
     }
-    catch (char const *error)
+    catch (std::string error)
     {
         v8::Local<v8::String> message = ErrorMessage::getTypeErrorMessage(argumentcount, error);
         Nan::ThrowTypeError(message);
@@ -388,7 +396,7 @@ NAN_METHOD(Adapter::GattsAddService)
     {
         baton->p_uuid = BleUUID(uuid);
     }
-    catch (char const *error)
+    catch (std::string error)
     {
         v8::Local<v8::String> message = ErrorMessage::getStructErrorMessage("uuid", error);
         Nan::ThrowTypeError(message);
@@ -451,7 +459,7 @@ NAN_METHOD(Adapter::GattsAddCharacteristic)
         callback = ConversionUtility::getCallbackFunction(info[argumentcount]);
         argumentcount++;
     }
-    catch (char const *error)
+    catch (std::string error)
     {
         v8::Local<v8::String> message = ErrorMessage::getTypeErrorMessage(argumentcount, error);
         Nan::ThrowTypeError(message);
@@ -538,7 +546,7 @@ NAN_METHOD(Adapter::GattsAddDescriptor)
         callback = ConversionUtility::getCallbackFunction(info[argumentcount]);
         argumentcount++;
     }
-    catch (char const *error)
+    catch (std::string error)
     {
         v8::Local<v8::String> message = ErrorMessage::getTypeErrorMessage(argumentcount, error);
         Nan::ThrowTypeError(message);
@@ -553,7 +561,7 @@ NAN_METHOD(Adapter::GattsAddDescriptor)
     {
         baton->p_attr = GattsAttribute(attributeStructure);
     }
-    catch (char const *error)
+    catch (std::string error)
     {
         v8::Local<v8::String> message = ErrorMessage::getStructErrorMessage("attr", error);
         Nan::ThrowTypeError(message);
@@ -614,7 +622,7 @@ NAN_METHOD(Adapter::GattsHVX)
         callback = ConversionUtility::getCallbackFunction(info[argumentcount]);
         argumentcount++;
     }
-    catch (char const *error)
+    catch (std::string error)
     {
         v8::Local<v8::String> message = ErrorMessage::getTypeErrorMessage(argumentcount, error);
         Nan::ThrowTypeError(message);
@@ -629,7 +637,7 @@ NAN_METHOD(Adapter::GattsHVX)
     {
         baton->p_hvx_params = GattsHVXParams(hvx_params);
     }
-    catch (char const *error)
+    catch (std::string error)
     {
         v8::Local<v8::String> message = ErrorMessage::getStructErrorMessage("hvx_params", error);
         Nan::ThrowTypeError(message);
@@ -707,7 +715,7 @@ NAN_METHOD(Adapter::GattsSystemAttributeSet)
         callback = ConversionUtility::getCallbackFunction(info[argumentcount]);
         argumentcount++;
     }
-    catch (char const *error)
+    catch (std::string error)
     {
         v8::Local<v8::String> message = ErrorMessage::getTypeErrorMessage(argumentcount, error);
         Nan::ThrowTypeError(message);
@@ -786,7 +794,7 @@ NAN_METHOD(Adapter::GattsSetValue)
         callback = ConversionUtility::getCallbackFunction(info[argumentcount]);
         argumentcount++;
     }
-    catch (char const *error)
+    catch (std::string error)
     {
         v8::Local<v8::String> message = ErrorMessage::getTypeErrorMessage(argumentcount, error);
         Nan::ThrowTypeError(message);
@@ -802,7 +810,7 @@ NAN_METHOD(Adapter::GattsSetValue)
     {
         baton->p_value = GattsValue(value);
     }
-    catch (char const *error)
+    catch (std::string error)
     {
         v8::Local<v8::String> message = ErrorMessage::getStructErrorMessage("value", error);
         Nan::ThrowTypeError(message);
@@ -867,7 +875,7 @@ NAN_METHOD(Adapter::GattsGetValue)
         callback = ConversionUtility::getCallbackFunction(info[argumentcount]);
         argumentcount++;
     }
-    catch (char const *error)
+    catch (std::string error)
     {
         v8::Local<v8::String> message = ErrorMessage::getTypeErrorMessage(argumentcount, error);
         Nan::ThrowTypeError(message);
@@ -883,7 +891,7 @@ NAN_METHOD(Adapter::GattsGetValue)
     {
         baton->p_value = GattsValue(value);
     }
-    catch (char const *error)
+    catch (std::string error)
     {
         v8::Local<v8::String> message = ErrorMessage::getStructErrorMessage("value", error);
         Nan::ThrowTypeError(message);
@@ -925,6 +933,7 @@ void Adapter::AfterGattsGetValue(uv_work_t *req)
     delete baton;
 }
 
+#if 0
 NAN_METHOD(Adapter::GattsReplyReadWriteAuthorize)
 {
     auto obj = Nan::ObjectWrap::Unwrap<Adapter>(info.Holder());
@@ -944,7 +953,7 @@ NAN_METHOD(Adapter::GattsReplyReadWriteAuthorize)
         callback = ConversionUtility::getCallbackFunction(info[argumentcount]);
         argumentcount++;
     }
-    catch (char const *error)
+    catch (std::string error)
     {
         v8::Local<v8::String> message = ErrorMessage::getTypeErrorMessage(argumentcount, error);
         Nan::ThrowTypeError(message);
@@ -959,7 +968,7 @@ NAN_METHOD(Adapter::GattsReplyReadWriteAuthorize)
     {
         baton->p_rw_authorize_reply_params = GattGattsReplyReadWriteAuthorizeParams(params);
     }
-    catch (char const *error)
+    catch (std::string error)
     {
         v8::Local<v8::String> message = ErrorMessage::getStructErrorMessage("rw_authorize_reply_params", error);
         Nan::ThrowTypeError(message);
@@ -998,6 +1007,8 @@ void Adapter::AfterGattsReplyReadWriteAuthorize(uv_work_t *req)
     delete baton->p_rw_authorize_reply_params;
     delete baton;
 }
+
+#endif
 
 extern "C" {
     void init_gatts(Nan::ADDON_REGISTER_FUNCTION_ARGS_TYPE target)
