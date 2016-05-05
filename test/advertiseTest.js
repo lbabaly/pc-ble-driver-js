@@ -12,10 +12,9 @@
 
 'use strict';
 
-const api = require('../../index').api;
-const driver = require('../../index.js').driver;
-const AdapterFactory = require('../../api/adapterFactory.js');
-var adapterFactory = AdapterFactory.getInstance(driver);
+const setup = require('./setup');
+const adapterFactory = setup.adapterFactory;
+const serviceFactory = setup.ServiceFactory;
 
 adapterFactory.on('added', adapter => {
     console.log(`onAdded: Adapter added. Adapter: ${adapter.instanceId}`);
@@ -42,6 +41,7 @@ adapterFactory.getAdapters((err, adapters) => {
     }
 
     let adapter = adapters[Object.keys(adapters)[0]];
+
     adapter.on('error', error => { console.log('adapter.onError: ' + JSON.stringify(error, null, 1)); });
     adapter.on(
         'stateChanged',
@@ -66,8 +66,7 @@ adapterFactory.getAdapters((err, adapters) => {
             console.log('Adapter opened.');
 
             let services = [];
-            let serviceFactory = new api.ServiceFactory();
-            let service1 = serviceFactory.createService('adabfb00-6e7d-4601-bda2-bffaa68956ba');
+            let service1 = serviceFactory.createService('adabfb006e7d4601bda2bffaa68956ba');
             let service2 = serviceFactory.createService('1234');
 
             let characteristic1 = serviceFactory.createCharacteristic(
@@ -75,20 +74,18 @@ adapterFactory.getAdapters((err, adapters) => {
                 '180d',
                 [1, 2, 3],
                 {
+                    broadcast: false,
+                    read: false,
+                    write: false,
+                    writeWoResp: false,
+                    reliableWrite: false, /* extended property in MCP ? */
+                    notify: false,
+                    indicate: false, /* notify/indicate is cccd, therefore it must be set */
+                },
+                {
                     maxLength: 3,
                     readPerm: ['open'],
                     writePerm: ['open'],
-                    writeAuth: false,
-                    readAuth: false,
-                    properties: { /* BT properties */
-                        broadcast: false,
-                        read: false,
-                        write: false,
-                        writeWoResp: false,
-                        reliableWrite: false, /* extended property in MCP ? */
-                        notify: false,
-                        indicate: false, /* notify/indicate is cccd, therefore it must be set */
-                    },
                 }
             );
 
@@ -97,20 +94,20 @@ adapterFactory.getAdapters((err, adapters) => {
                 '9876',
                 [6, 5, 4],
                 {
+                    broadcast: false,
+                    read: true,
+                    write: true,
+                    writeWoResp: false,
+                    reliableWrite: false, /* extended property in MCP ? */
+                    notify: false,
+                    indicate: false, /* notify/indicate is cccd, therefore it must be set */
+                },
+                {
                     maxLength: 3,
                     readPerm: ['open'],
                     writePerm: ['open'],
                     writeAuth: false,
                     readAuth: false,
-                    properties: { /* BT properties */
-                        broadcast: false,
-                        read: true,
-                        write: true,
-                        writeWoResp: false,
-                        reliableWrite: false, /* extended property in MCP ? */
-                        notify: true,
-                        indicate: false, /* notify/indicate is cccd, therefore it must be set */
-                    },
                 }
             );
 

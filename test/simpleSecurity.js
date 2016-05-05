@@ -17,7 +17,6 @@ const crypto = require('crypto');
 
 const setup = require('./setup');
 const adapterFactory = setup.adapterFactory;
-const ServiceFactory = setup.ServiceFactory;
 const driver = setup.driver;
 
 const os = require('os');
@@ -916,7 +915,7 @@ function setupAuthLegacyPasskey(
     });
 }
 
-function setupAuthLESCNumericComparisonAndroid(
+function setupAuthLESCNumericComparisonExternal(
     centralAdapter,
     peripheralAdapter,
     peripheralDevice,
@@ -1017,7 +1016,7 @@ function setupAuthLESCNumericComparisonAndroid(
                     });
                 });
 
-                console.log(`\n\nLescNumericComparisonAndroid authentication started.. not using centralAdapter, let that be the Android instead. \n#1 Please connect to ${peripheralName} from your Android phone \n#2 Start bonding on your Android phone.\n\n`);
+                console.log(`\n\nLescNumericComparisonExternal authentication started.. not using centralAdapter, let that be the an external device supporting BLE LESC instead. \n#1 Please connect to ${peripheralName} from your external device (phone, etc).\n#2 Start bonding on your external device.\n\n`);
             });
         });
     });
@@ -1181,8 +1180,8 @@ function runTests(centralAdapter, peripheralAdapter) {
                                     console.log('\n\nLESCPasskey - OK\n\n');
                                     setupAuthLESCOOB(centralAdapter, peripheralAdapter, peripheralDevice, () => {
                                         console.log('\n\nLESCOOB - OK\n\n');
-                                        setupAuthLESCNumericComparisonAndroid(centralAdapter, peripheralAdapter, peripheralDevice, () => {
-                                            console.log('\n\nLESCNumericComparisonAndroid - OK\n\n');
+                                        setupAuthLESCNumericComparisonExternal(centralAdapter, peripheralAdapter, peripheralDevice, () => {
+                                            console.log('\n\nLESCNumericComparisonExternal - OK\n\n');
                                         });
                                     });
                                 });

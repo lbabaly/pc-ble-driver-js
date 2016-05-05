@@ -13,6 +13,7 @@
 'use strict';
 
 const _bleDriver = require('bindings')('pc-ble-driver-js');
+const os = require('os');
 
 var  Adapter = require('./adapter');
 const EventEmitter = require('events');
@@ -80,8 +81,14 @@ class AdapterFactory extends EventEmitter {
         const addOnAdapter = new this._bleDriver.Adapter();
 
         if (addOnAdapter === undefined) { throw new Error('Missing argument adapter.'); }
-        const parsedAdapter = new Adapter(this._bleDriver, addOnAdapter, instanceId, adapter.comName);
 
+        let notSupportedMessage;
+
+        if ((os.platform() === 'darwin') && (adapter.manufacturer === 'SEGGER')) {
+          notSupportedMessage = 'This adapter with SEGGER debug probe firmware is not supported on OS X. Please visit http://www.nordicsemi.no/nRFconnectOSXfix for further instructions on how to change to ARM mbed DAPLink firmware.';
+        }
+
+        const parsedAdapter = new Adapter(this._bleDriver, addOnAdapter, instanceId, adapter.comName, notSupportedMessage);
         return parsedAdapter;
     }
 
