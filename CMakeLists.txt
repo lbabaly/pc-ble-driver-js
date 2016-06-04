@@ -1,31 +1,16 @@
-cmake_minimum_required(VERSION 2.8)
+cmake_minimum_required(VERSION 2.8.3)
 
 # Name of the project (will be the name of the plugin)
 project (pc-ble-driver-js)
 
-if(APPLE)
-    set(CMAKE_SKIP_BUILD_RPATH TRUE)
-    set(CMAKE_BUILD_WITH_INSTALL_RPATH TRUE)
-    set(CMAKE_INSTALL_RPATH "@loader_path")
-endif()
+# All projects depending on pc-ble-driver need to include this first
+include(pc-ble-driver/cmake/pc-ble-driver.cmake)
+add_subdirectory(pc-ble-driver)
 
-set(BLE_DRIVER_INCLUDE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/driver/include)
 set(UECC_INCLUDE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/src/uECC)
-
-# Platform specific
-if(MSVC)
-    include(cmake/msvc.cmake)
-elseif(APPLE)
-    include(cmake/apple.cmake)
-else()
-    include(cmake/gcc.cmake)
-endif()
-
-add_subdirectory(driver)
-
 # Essential include files to build a node addon,
 # you should add this line in every CMake.js based project.
-include_directories(${CMAKE_JS_INC} ${BLE_DRIVER_INCLUDE_DIR} ${UECC_INCLUDE_DIR})
+include_directories(${CMAKE_JS_INC} ${PC_BLE_DRIVER_INCLUDE_DIR} ${UECC_INCLUDE_DIR})
 
 # Specify source files
 file (GLOB SOURCE_FILES
@@ -46,12 +31,9 @@ file (GLOB UECC_SOURCE_FILES
 )
 
 if(WIN32)
-    file(GLOB PLATFORM_SOURCE_FILES "src/win/*.c" "src/win/*.cpp" "src/serialadapter_win.cpp")
 elseif(APPLE)
-    file(GLOB PLATFORM_SOURCE_FILES "src/serialadapter_osx.cpp")
 else()
     # Assume Linux
-    file(GLOB PLATFORM_SOURCE_FILES "src/serialadapter_linux.cpp")
 endif()
 
 # Force .c files to be compiled with the C++ compiler
@@ -71,6 +53,11 @@ set_target_properties(${PROJECT_NAME}
     COMPILE_FLAGS "${CMAKE_CXX_FLAGS} -DBUILDING_NODE_EXTENSION"
     PREFIX ""
     SUFFIX ".node")
+
+# Build the pc-ble-driver as a static library
+add_definitions(
+    -DPC_BLE_DRIVER_STATIC
+)
 
 if(WIN32)
     include_directories("${CMAKE_JS_INC}/win")
