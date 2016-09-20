@@ -1,13 +1,38 @@
-/* Copyright (c) 2016 Nordic Semiconductor. All Rights Reserved.
+/*
+ * Copyright (c) 2016 Nordic Semiconductor ASA
+ * All rights reserved.
  *
- * The information contained herein is property of Nordic Semiconductor ASA.
- * Terms and conditions of usage are described in detail in NORDIC
- * SEMICONDUCTOR STANDARD SOFTWARE LICENSE AGREEMENT.
+ * Redistribution and use in source and binary forms, with or without modification,
+ * are permitted provided that the following conditions are met:
  *
- * Licensees are granted free, non-transferable use of the information. NO
- * WARRANTY of ANY KIND is provided. This heading must NOT be removed from
- * the file.
+ *   1. Redistributions of source code must retain the above copyright notice, this
+ *   list of conditions and the following disclaimer.
  *
+ *   2. Redistributions in binary form must reproduce the above copyright notice, this
+ *   list of conditions and the following disclaimer in the documentation and/or
+ *   other materials provided with the distribution.
+ *
+ *   3. Neither the name of Nordic Semiconductor ASA nor the names of other
+ *   contributors to this software may be used to endorse or promote products
+ *   derived from this software without specific prior written permission.
+ *
+ *   4. This software must only be used in or with a processor manufactured by Nordic
+ *   Semiconductor ASA, or in or with a processor manufactured by a third party that
+ *   is used in combination with a processor manufactured by Nordic Semiconductor.
+ *
+ *   5. Any software provided in binary or object form under this license must not be
+ *   reverse engineered, decompiled, modified and/or disassembled.
+ *
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND
+ * ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
+ * WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+ * DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR
+ * ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
+ * (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
+ * LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON
+ * ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+ * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+ * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
 'use strict';
@@ -15,7 +40,7 @@
 const AD_PACKET_MAX_SIZE = 20;
 
 // Remove hyphens and reverse byte ordering to little endian
-let cleanUpUuid = function(uuid) {
+let cleanUpUuid = function (uuid) {
     return uuid
         .replace(/-/g, '')
         .match(/.{2}/g)
@@ -23,7 +48,7 @@ let cleanUpUuid = function(uuid) {
         .join('');
 };
 
-let flagsTypeMarshaller = function(buf, offset, flags) {
+let flagsTypeMarshaller = function (buf, offset, flags) {
     let value = 0x00;
 
     for (const flag in flags) {
@@ -51,7 +76,7 @@ let flagsTypeMarshaller = function(buf, offset, flags) {
     return buf.writeUInt8(value, offset);
 };
 
-let serviceUuidsMarshaller = function(buf, offset, uuids) {
+let serviceUuidsMarshaller = function (buf, offset, uuids) {
     // TODO: add uuids
     var pos = offset;
 
@@ -64,7 +89,7 @@ let serviceUuidsMarshaller = function(buf, offset, uuids) {
     return pos;
 };
 
-let txPowerLevelMarshaller = function(buf, offset, powerLevel) {
+let txPowerLevelMarshaller = function (buf, offset, powerLevel) {
     if (powerLevel < -127 || powerLevel > 127) {
         throw new Error('powerLevel is outside acceptable levels (-127 to +127 dBm)');
     }
@@ -73,7 +98,7 @@ let txPowerLevelMarshaller = function(buf, offset, powerLevel) {
 };
 
 // Special case marshaller, requires id value to be provided in payload
-let customMarshaller = function(buf, offset, customData) {
+let customMarshaller = function (buf, offset, customData) {
     let pos = offset - 1; // Overwrite the ID field at position offset - 1 since it is included in customData
     const temp = new Buffer(customData, 'hex');
     temp.copy(buf, pos);
@@ -82,7 +107,7 @@ let customMarshaller = function(buf, offset, customData) {
     return pos;
 };
 
-const notImplemented = function(buf, offset, name) {
+const notImplemented = function (buf, offset, name) {
     throw new Error('Not implemented!');
 };
 
@@ -96,9 +121,9 @@ const adTypeConverter = {
     incompleteListOf128BitServiceUuids: { id: 0x06, marshall: serviceUuidsMarshaller },
     completeListOf128BitServiceUuids:   { id: 0x07, marshall: serviceUuidsMarshaller },
 
-    shortenedLocalName: { id: 0x08, marshall: (buf, offset, name) => { return buf.write(name, offset, name.length, 'binary') + offset; }, },
+    shortenedLocalName: { id: 0x08, marshall: (buf, offset, name) => buf.write(name, offset, name.length, 'binary') + offset },
 
-    completeLocalName:  { id: 0x09, marshall: (buf, offset, name) => { return buf.write(name, offset, name.length, 'binary') + offset; } },
+    completeLocalName:  { id: 0x09, marshall: (buf, offset, name) => buf.write(name, offset, name.length, 'binary') + offset },
 
     txPowerLevel:  { id: 0x0a, marshall: txPowerLevelMarshaller },
     classOfDevice: { id: 0x0d, marshall: notImplemented },

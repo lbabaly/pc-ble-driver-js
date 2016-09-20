@@ -13,10 +13,15 @@ When production quality is reached we will probably publish it on npmjs. Stay wi
 
 # Installation procedure
 
+To run the AddOn you will need to set up your boards to be able to communicate with your computer.
+You can find additional information here:
+
+[Hardware setup](https://github.com/NordicSemiconductor/pc-ble-driver/tree/self_contained_driver#hardware-setup)
+
 Before building this AddOn you will need to have Boost installed and some of its libraries statically compiled.
 To install and compile Boost, please follow the instructions here:
 
-[Installing and building Boost](https://github.com/NordicSemiconductor/pc-ble-driver/tree/self_contained_driver#installing-and-building-boost)
+[Building Boost](https://github.com/NordicSemiconductor/pc-ble-driver/tree/self_contained_driver#building-boost)
 
 You need to have the cmake-js npm installed and the correct C++ compiler that matches your version of NodeJS.
 
@@ -27,11 +32,22 @@ Your nRF51 Development Kit needs to be flashed with the connectivity firmware fo
 ## WIN32
 
 Setup npm:
+
+```
 npm config set cmake_CMAKE_GENERATOR:INTERNAL="Visual Studio 12 2013"
 npm config set cmake_BOOST_ROOT=c:\users\kere\dev\boost_1_60_0
+```
+
+## Ubuntu Linux
+
+Setup npm:
+
+```
+npm config set cmake_BOOST_ROOT=/path/to/boost_x_xx_x
+```
 
 # Run example
 
 ```
-node example_scan.js
+node test/simpleScanTest.js
 ```
