@@ -1,55 +1,53 @@
-/* Copyright (c) 2016, Nordic Semiconductor ASA
+/* Copyright (c) 2010 - 2017, Nordic Semiconductor ASA
  *
  * All rights reserved.
  *
- * Redistribution and use in source and binary forms, with or without modification,
- * are permitted provided that the following conditions are met:
+ * Use in source and binary forms, redistribution in binary form only, with
+ * or without modification, are permitted provided that the following conditions
+ * are met:
  *
- *   1. Redistributions of source code must retain the above copyright notice, this
- *   list of conditions and the following disclaimer.
+ * 1. Redistributions in binary form, except as embedded into a Nordic
+ *    Semiconductor ASA integrated circuit in a product or a software update for
+ *    such product, must reproduce the above copyright notice, this list of
+ *    conditions and the following disclaimer in the documentation and/or other
+ *    materials provided with the distribution.
  *
- *   2. Redistributions in binary form, except as embedded into a Nordic
- *   Semiconductor ASA integrated circuit in a product or a software update for
- *   such product, must reproduce the above copyright notice, this list of
- *   conditions and the following disclaimer in the documentation and/or other
- *   materials provided with the distribution.
+ * 2. Neither the name of Nordic Semiconductor ASA nor the names of its
+ *    contributors may be used to endorse or promote products derived from this
+ *    software without specific prior written permission.
  *
- *   3. Neither the name of Nordic Semiconductor ASA nor the names of its
- *   contributors may be used to endorse or promote products derived from this
- *   software without specific prior written permission.
+ * 3. This software, with or without modification, must only be used with a Nordic
+ *    Semiconductor ASA integrated circuit.
  *
- *   4. This software, with or without modification, must only be used with a
- *   Nordic Semiconductor ASA integrated circuit.
- *
- *   5. Any software provided in binary form under this license must not be
- *   reverse engineered, decompiled, modified and/or disassembled.
- *
+ * 4. Any software provided in binary form under this license must not be reverse
+ *    engineered, decompiled, modified and/or disassembled.
  *
  * THIS SOFTWARE IS PROVIDED BY NORDIC SEMICONDUCTOR ASA "AS IS" AND ANY EXPRESS OR
  * IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF
  * MERCHANTABILITY, NONINFRINGEMENT, AND FITNESS FOR A PARTICULAR PURPOSE ARE
- * DISCLAIMED. IN NO EVENT SHALL NORDIC SEMICONDUCTOR ASA OR CONTRIBUTORS BE
- * LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
- * CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE
- * GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
- * HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
- * LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT
- * OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ * DISCLAIMED. IN NO EVENT SHALL NORDIC SEMICONDUCTOR ASA OR CONTRIBUTORS BE LIABLE
+ * FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+ * DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+ * SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+ * CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR
+ * TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF
+ * THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
 'use strict';
 
 const _ = require('underscore');
-const JSZip = require('jszip');
-const fs = require('fs');
 const EventEmitter = require('events');
+const fs = require('fs');
+const JSZip = require('jszip');
 
-const logLevel = require('./util/logLevel');
-const ErrorCode = require('./dfu/dfuConstants').ErrorCode;
-const createError = require('./dfu/dfuConstants').createError;
 const BleTransport = require('./dfu/bleTransport');
+const createError = require('./dfu/dfuConstants').createError;
+const ErrorCode = require('./dfu/dfuConstants').ErrorCode;
 const DfuSpeedometer = require('./dfu/dfuSpeedometer');
+const logLevel = require('./util/logLevel');
 
+/** @constant Enumeration of the Dfu controllers's possible states. */
 const DfuState = Object.freeze({
     READY: 0,
     IN_PROGRESS: 1,
@@ -57,11 +55,30 @@ const DfuState = Object.freeze({
 });
 
 /**
- * Class that provides Dfu controller functionality
- * @class
+ * Class that provides Dfu controller functionality.
+ *
+ * @fires Adapter#stateChanged
+ * @fires Dfu#transferStart
+ * @fires Dfu#transferComplete
+ * @fires Dfu#progressUpdate
+ * @fires Adapter#logMessage
  */
 class Dfu extends EventEmitter {
-
+    /**
+     * Initializes the Dfu controller.
+     *
+     * @constructor
+     * @param {string} transportType TODO: is this used anywhere?
+     * @param {Object} transportParameters Configuration parameters.
+     * Available transport parameters:
+     *  <ul>
+     *  <li>{Object} adapter: An instance of adapter.
+     *  <li>{string} targetAddress: The target address to connect to.
+     *  <li>{string} targetAddressType: The target address type.
+     *  <li>{number} [prnValue]: Packet receipt notification number.
+     *  <li>{number} [mtuSize]: Maximum transmission unit number.
+     *  </ul>
+     */
     constructor(transportType, transportParameters) {
         super();
 
@@ -80,11 +97,11 @@ class Dfu extends EventEmitter {
     }
 
     /**
-     * Perform DFU with the given zip file. Successful when callback is invoked
-     * with no arguments.
+     * Perform DFU with the given zip file. Successful when callback is invoked with no arguments.
      *
-     * @param zipFilePath path to DFU zip file
-     * @param callback signature: (err, abort) => {}
+     * @param {string} zipFilePath Path to zip file containing data for Dfu.
+     * @param {function} callback Signature: (err, abort) => {}.
+     * @returns {void}
      */
     performDFU(zipFilePath, callback) {
         if (this._state !== DfuState.READY) {
@@ -119,6 +136,11 @@ class Dfu extends EventEmitter {
             });
     }
 
+    /**
+     * Abort the Dfu procedure.
+     *
+     * @returns {void}
+     */
     abort() {
         this._log(logLevel.INFO, 'Aborting DFU.');
         this._setState(DfuState.ABORTING);
@@ -201,6 +223,13 @@ class Dfu extends EventEmitter {
     }
 
     _transferInitPacket(file) {
+        /**
+         * DFU transfer start event.
+         *
+         * @event Dfu#transferStart
+         * @type {Object}
+         * @property {string} file.name - The name of the file being transferred.
+         */
         this.emit('transferStart', file.name);
         return file.loadData().then(data => {
             return this._transport.sendInitPacket(data)
@@ -216,6 +245,14 @@ class Dfu extends EventEmitter {
                     this._speedometer = new DfuSpeedometer(data.length, state.offset);
                     return this._transport.sendFirmware(data);
                 })
+
+                /**
+                 * DFU transfer complete event.
+                 *
+                 * @event Dfu#transferComplete
+                 * @type {Object}
+                 * @property {string} file.name - The name of the file that was transferred.
+                 */
                 .then(() => this.emit('transferComplete', file.name));
         });
     }
@@ -223,6 +260,14 @@ class Dfu extends EventEmitter {
     _handleProgressUpdate(progressUpdate) {
         if (progressUpdate.offset) {
             this._speedometer.updateState(progressUpdate.offset);
+
+            /**
+             * DFU progress update event.
+             *
+             * @event Dfu#progressUpdate
+             * @type {Object}
+             * @property {Object} _ - Progress meta-data.
+             */
             this.emit('progressUpdate', {
                 stage: progressUpdate.stage,
                 completedBytes: progressUpdate.offset,
@@ -242,8 +287,8 @@ class Dfu extends EventEmitter {
     * Get promise for manifest.json from the given zip file.
     * This function is a wrapper for getManifest().
     *
-    * @param zipFilePath path of the zip file
-    * @returns Promise for manifest.json
+    * @param {string} zipFilePath Path of the zip file.
+    * @returns {Promise} For manifest.json
     * @private
     */
     _getManifestAsync(zipFilePath) {
@@ -258,12 +303,12 @@ class Dfu extends EventEmitter {
      * Get promise for JSZip zip object of the given zip file.
      * This function is a wrapper for _loadZip().
      *
-     * @param zipFilePath path of the zip file
-     * @returns Promise for JSZip zip object
+     * @param {string} zipFilePath path of the zip file
+     * @returns {Promise} for JSZip zip object
      * @private
      */
     _loadZipAsync(zipFilePath) {
-        return new Promise ((resolve, reject) => {
+        return new Promise((resolve, reject) => {
             this._loadZip(zipFilePath, (err, zip) => {
                 err ? reject(err) : resolve(zip);
             });
@@ -286,20 +331,23 @@ class Dfu extends EventEmitter {
      *
      * The sorting is such that the application update is put last.
      *
-     * @param zipFilePath path of the zip file containing the updates
-     * @returns Promise resolves to an array of updates
+     * @param {string} zipFilePath path of the zip file containing the updates
+     * @returns {Promise} resolves to an array of updates
+     * @returns {void}
      * @private
      */
     _fetchUpdates(zipFilePath) {
         this._log(logLevel.DEBUG, `Loading zip file: ${zipFilePath}`);
         return Promise.all([
             this._loadZipAsync(zipFilePath),
-            this._getManifestAsync(zipFilePath)
-        ]).then(([zip, manifest]) => {
+            this._getManifestAsync(zipFilePath),
+        ]).then(result => {
+            const zip = result[0];
+            const manifest = result[1];
             return this._getFirmwareTypes(manifest).map(type => {
                 const firmwareUpdate = manifest[type];
-                const datFileName = firmwareUpdate['dat_file'];
-                const binFileName = firmwareUpdate['bin_file'];
+                const datFileName = firmwareUpdate.dat_file;
+                const binFileName = firmwareUpdate.bin_file;
                 this._log(logLevel.DEBUG, `Found ${type} files: ${datFileName}, ${binFileName}`);
                 return {
                     datFile: {
@@ -320,15 +368,16 @@ class Dfu extends EventEmitter {
             'softdevice',
             'bootloader',
             'softdevice_bootloader',
-            'application'
-        ].filter(type => manifest[type] ? true : false);
+            'application',
+        ].filter(type => !!manifest[type]);
     }
 
     /**
      * Get JSZip zip object of the given zip file.
      *
-     * @param zipFilePath path of the zip file
-     * @param callback signature: (err, zip) => {}
+     * @param {string} zipFilePath Path of the zip file.
+     * @param {function} callback Signature: (err, zip) => {}.
+     * @returns {void}
      * @private
      */
     _loadZip(zipFilePath, callback) {
@@ -342,10 +391,10 @@ class Dfu extends EventEmitter {
                 .then(zip => {
                     callback(undefined, zip);
                 })
-                .catch(err => {
-                    return callback(err);
+                .catch(error => {
+                    callback(error);
                 });
-        })
+        });
     }
 
     /**
@@ -371,8 +420,9 @@ class Dfu extends EventEmitter {
      *   sd_size: <integer>, // Softdevice size
      * }
      *
-     * @param zipFilePath path to the zip file
-     * @param callback signature: (err, manifest) => {}
+     * @param {string} zipFilePath Path to the zip file.
+     * @param {function} callback Signature: (err, manifest) => {}.
+     * @returns {void}
      */
     getManifest(zipFilePath, callback) {
         if (!zipFilePath) {
@@ -385,24 +435,24 @@ class Dfu extends EventEmitter {
                 return callback(err);
             }
             // Read out manifest from zip
-            zip.file("manifest.json")
-                .async("string")
+            zip.file('manifest.json')
+                .async('string')
                 .then(data => {
                     let manifest;
                     try {
                         // Parse manifest as JSON
-                        manifest = JSON.parse(data)['manifest'];
-                    } catch (err) {
-                        return callback(err);
+                        manifest = JSON.parse(data).manifest;
+                    } catch (error) {
+                        return callback(error);
                     }
                     // Return manifest
                     return callback(undefined, manifest);
                 });
-        })
+        });
     }
 
-    _log(logLevel, message) {
-        this.emit('logMessage', logLevel, message);
+    _log(level, message) {
+        this.emit('logMessage', level, message);
     }
 }
 

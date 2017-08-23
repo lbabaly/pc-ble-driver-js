@@ -98,7 +98,7 @@ export class Adapter extends EventEmitter {
   close(callback?: (err: any) => void): void;
   startScan(options: ScanParameters, callback?: (err: any) => void): void;
   stopScan(callback?: (err: any) => void): void;
-  connect(deviceAddress: string, options: ConnectionOptions, callback?: (err: any) => void): void;
+  connect(deviceAddress: string | Address, options: ConnectionOptions, callback?: (err: any) => void): void;
   getService(serviceInstanceId: string, callback?: (err: any, service: Service) => void): void;
   getServices(deviceInstanceId: string, callback?: (err: any, services: Array<Service>) => void): void;
   getCharacteristic(charInstanceId: string): Characteristic;
@@ -130,15 +130,40 @@ export class ServiceFactory {
   createDescriptor(characteristic: Characteristic, uuid: string, value: string, options: string);
 }
 
-export const api: {
-  AdapterFactory: typeof AdapterFactory;
-  Adapter: typeof Adapter;
-  AdapterState: typeof AdapterState;
-  Characteristic: typeof Characteristic;
-  Device: typeof Device;
-  Service: typeof Service;
-  Descriptor: typeof Descriptor;
-  ServiceFactory: typeof ServiceFactory;
-};
+export class KeyPair {
+  sk: string;
+  pk: string;
+}
+
+export class PublicKey {
+  pk: string;
+}
+
+export class SharedSecret {
+  ss: string;
+}
+
+export class Security {
+  generateKeyPair(): KeyPair;
+  generatePublicKey(privateKey: string): PublicKey;
+  generateSharedSecred(privateKey: string, publicKey: string): SharedSecret;
+}
+
+export class DfuTransportParameters {
+  adapter: Adapter;
+  targetAddress: string;
+  targetAddressType: string;
+  prnValue?: number;
+  mtuSize?: number;
+}
+
+export class Dfu extends EventEmitter {
+  constructor(transportType: string, transportParameters: DfuTransportParameters);
+  performDfu(zipFilePath: string, callback: (err?: any, abort?: boolean) => void): void;
+  abort(): void;
+}
+
+export function getFirmwarePath(family: string): string;
+export function getFirmwareString(family: string): string;
 
 export const driver: any;
