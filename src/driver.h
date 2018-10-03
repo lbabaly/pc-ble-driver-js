@@ -38,6 +38,7 @@
 #define BLE_DRIVER_JS_DRIVER_H
 
 #include <string>
+#include <memory>
 
 #include <sd_rpc.h>
 #include "common.h"
@@ -236,9 +237,9 @@ public:
     BATON_CONSTRUCTOR(OpenBaton)
     //char path[PATH_STRING_SIZE];
     std::string path;
-    Nan::Callback *event_callback; // Callback that is called for every event that is received from the SoftDevice
-    Nan::Callback *log_callback;   // Callback that is called for every log entry that is received from the SoftDevice
-    Nan::Callback *status_callback;   // Callback that is called for every status occuring in the pc-ble-driver
+    std::unique_ptr<Nan::Callback> event_callback; // Callback that is called for every event that is received from the SoftDevice
+    std::unique_ptr<Nan::Callback> log_callback;   // Callback that is called for every log entry that is received from the SoftDevice
+    std::unique_ptr<Nan::Callback> status_callback;   // Callback that is called for every status occuring in the pc-ble-driver
 
     sd_rpc_log_severity_t log_level;
     sd_rpc_log_handler_t log_handler;
@@ -252,7 +253,8 @@ public:
     uint32_t retransmission_interval; // The interval between each retransmission of packet to target
     uint32_t response_timeout; // Duration to wait for reply on reliable packet sent to target
 
-    bool enable_ble; // Enable BLE or not when connecting, if not the developer must enable the the BLE when state is active
+    bool enable_ble; // Enable BLE or not when connecting, if not the developer must enable the BLE when state is active
+    ble_enable_params_t *ble_enable_params; // If enable BLE is true, then use these params when enabling BLE
 
     Adapter *mainObject;
 };
@@ -264,10 +266,19 @@ public:
     Adapter *mainObject;
 };
 
+struct ConnResetBaton : public Baton
+{
+public:
+    BATON_CONSTRUCTOR(ConnResetBaton);
+    sd_rpc_reset_t reset;
+    Adapter *mainObject;
+};
+
 struct EnableBLEBaton : public Baton
 {
 public:
-    BATON_CONSTRUCTOR(EnableBLEBaton)
+    BATON_CONSTRUCTOR(EnableBLEBaton);
+    BATON_DESTRUCTOR(EnableBLEBaton) { delete enable_params; }
     ble_enable_params_t *enable_params;
     uint32_t app_ram_base;
 };
@@ -277,6 +288,7 @@ struct GetVersionBaton : public Baton
 {
 public:
     BATON_CONSTRUCTOR(GetVersionBaton);
+    BATON_DESTRUCTOR(GetVersionBaton) { delete version; }
     ble_version_t *version;
 
 };
@@ -285,6 +297,7 @@ class BleAddVendorSpcificUUIDBaton : public Baton
 {
 public:
     BATON_CONSTRUCTOR(BleAddVendorSpcificUUIDBaton);
+    BATON_DESTRUCTOR(BleAddVendorSpcificUUIDBaton) { delete p_vs_uuid; }
     ble_uuid128_t *p_vs_uuid;
     uint8_t p_uuid_type;
 };
@@ -293,6 +306,11 @@ class BleUUIDEncodeBaton : public Baton
 {
 public:
     BATON_CONSTRUCTOR(BleUUIDEncodeBaton);
+    BATON_DESTRUCTOR(BleUUIDEncodeBaton)
+    {
+        delete p_uuid;
+        delete uuid_le;
+    }
     ble_uuid_t *p_uuid;
     uint8_t uuid_le_len;
     uint8_t *uuid_le;
@@ -302,6 +320,11 @@ class BleUUIDDecodeBaton : public Baton
 {
 public:
     BATON_CONSTRUCTOR(BleUUIDDecodeBaton);
+    BATON_DESTRUCTOR(BleUUIDDecodeBaton)
+    {
+        delete p_uuid;
+        delete uuid_le;
+    }
     uint8_t uuid_le_len;
     ble_uuid_t *p_uuid;
     uint8_t *uuid_le;
@@ -311,6 +334,11 @@ class BleUserMemReplyBaton : public Baton
 {
 public:
     BATON_CONSTRUCTOR(BleUserMemReplyBaton);
+    BATON_DESTRUCTOR(BleUserMemReplyBaton)
+    {
+        free(p_block->p_mem);
+        delete p_block;
+    }
     uint16_t conn_handle;
     ble_user_mem_block_t *p_block;
 };
@@ -319,6 +347,7 @@ class BleOptionBaton : public Baton
 {
 public:
     BATON_CONSTRUCTOR(BleOptionBaton);
+    BATON_DESTRUCTOR(BleOptionBaton) { delete p_opt; }
     uint32_t opt_id;
     ble_opt_t *p_opt;
 };

@@ -176,8 +176,31 @@ void Adapter::dispatchEvents()
     }
     else
     {
-        std::cerr << "Adapter::dispatchEvents() asyncEvent is nullptr!" << std::endl;
-        std::terminate();
+        // Adapter::cleanUpV8Resources() sets the Adapter::asyncEvent object to null.
+        // Adapter::cleanUpV8Resources() is called from both Adapter::AfterClose and Adapter::AfterConnReset
+        //
+        // If Adapter::eventInterval is 0, this method, Adapter::dispatchEvents, will be called directly without being
+        // invoked from eventIntervalTimer. 
+        //
+        // When Adapter::AfterClose is invoked, parts of Adapter::cleanUpV8Resources() is ran before the
+        // the following call graph is complete:
+        //
+        // SoftDevice callback -> sd_rpc_on_event(...) -> Adapter::appendEvent(...) -> Adapter::dispatchEvents()
+        //
+        // The above call graph is ran in thread SerializationTransport::eventThread when Adapter::eventInterval == 0.
+        //
+        // If eventInterval != 0 the event is popped out of the Adapter::eventQueue queue by 
+        // Adapter::eventIntervalTimer, in a libuv thread-pool thread. Adapter::eventIntervalTimer is stopped in 
+        // Adapter::cleanUpV8Resources().
+        //
+        // A quick fix to circumvent this race condition is to ignore the event when Adapter::asyncEvent is nullptr.
+        //
+        // A more permanent fix should be implemented, it would require better documentation/understanding of
+        // pc-ble-driver-js inner workings and some changes to synchronization between libuv thread and pc-ble-driver(-js) threads.
+        if (eventInterval > 0) {
+            std::cerr << "Adapter::dispatchEvents() asyncEvent is nullptr!" << std::endl;
+            std::terminate();
+        }
     }
 }
 
@@ -479,7 +502,7 @@ v8::Local<v8::Object> CommonDataLengthChangedEvent::ToJs()
 #endif
 
 // Class private method that is only used by the class to activate the SoftDevice in the Adapter
-uint32_t Adapter::enableBLE(adapter_t *adapter)
+uint32_t Adapter::enableBLE(adapter_t *adapter, ble_enable_params_t *ble_enable_params)
 {
     // If the this->adapter has not been set yet it is because the Adapter::Open call has not set
     // an adapter_t instance. The SoftDevice is started in Adapter::Open call and we do not have to
@@ -489,18 +512,7 @@ uint32_t Adapter::enableBLE(adapter_t *adapter)
         return NRF_ERROR_INVALID_PARAM;
     }
 
-    ble_enable_params_t ble_enable_params;
-
-    memset(&ble_enable_params, 0, sizeof(ble_enable_params));
-
-    ble_enable_params.common_enable_params.vs_uuid_count = 5;
-    ble_enable_params.gap_enable_params.periph_conn_count = 1;
-    ble_enable_params.gap_enable_params.central_sec_count = 1;
-    ble_enable_params.gatts_enable_params.service_changed = false;
-    ble_enable_params.gatts_enable_params.attr_tab_size = BLE_GATTS_ATTR_TAB_SIZE_DEFAULT;
-    ble_enable_params.gap_enable_params.central_conn_count = 7;
-
-    return sd_ble_enable(adapter, &ble_enable_params, 0);
+    return sd_ble_enable(adapter, ble_enable_params, 0);
 }
 
 // This function runs in the Main Thread
@@ -572,7 +584,6 @@ void Adapter::AfterEnableBLE(uv_work_t *req)
     }
 
     baton->callback->Call(3, argv);
-    delete baton->enable_params;
     delete baton;
 }
 
@@ -619,12 +630,23 @@ NAN_METHOD(Adapter::Open)
         baton->retransmission_interval = ConversionUtility::getNativeUint32(options, "retransmissionInterval"); parameter++;
         baton->response_timeout = ConversionUtility::getNativeUint32(options, "responseTimeout"); parameter++;
         baton->enable_ble = ConversionUtility::getBool(options, "enableBLE"); parameter++;
+        baton->ble_enable_params = EnableParameters(ConversionUtility::getJsObject(options, "enableBLEParams")); parameter++;
     }
     catch (std::string error)
     {
         std::stringstream errormessage;
         errormessage << "A setup option was wrong. Option: ";
-        const char *_options[] = { "baudrate", "parity", "flowcontrol", "eventInterval", "logLevel", "retransmissionInterval", "responseTimeout", "enableBLE" };
+        const char *_options[] = {
+            "baudrate",
+            "parity",
+            "flowcontrol",
+            "eventInterval",
+            "logLevel",
+            "retransmissionInterval",
+            "responseTimeout",
+            "enableBLE",
+            "enableBLEParams"
+        };
         errormessage << _options[parameter] << ". Reason: " << error;
         Nan::ThrowTypeError(errormessage.str().c_str());
         return;
@@ -632,7 +654,7 @@ NAN_METHOD(Adapter::Open)
 
     try
     {
-        baton->log_callback = new Nan::Callback(ConversionUtility::getCallbackFunction(options, "logCallback"));
+        baton->log_callback = std::unique_ptr<Nan::Callback>(new Nan::Callback(ConversionUtility::getCallbackFunction(options, "logCallback")));
     }
     catch (std::string error)
     {
@@ -643,7 +665,7 @@ NAN_METHOD(Adapter::Open)
 
     try
     {
-        baton->event_callback = new Nan::Callback(ConversionUtility::getCallbackFunction(options, "eventCallback"));
+        baton->event_callback = std::unique_ptr<Nan::Callback>(new Nan::Callback(ConversionUtility::getCallbackFunction(options, "eventCallback")));
     }
     catch (std::string error)
     {
@@ -654,7 +676,7 @@ NAN_METHOD(Adapter::Open)
 
     try
     {
-        baton->status_callback = new Nan::Callback(ConversionUtility::getCallbackFunction(options, "statusCallback"));
+        baton->status_callback = std::unique_ptr<Nan::Callback>(new Nan::Callback(ConversionUtility::getCallbackFunction(options, "statusCallback")));
     }
     catch (std::string error)
     {
@@ -671,12 +693,6 @@ void Adapter::Open(uv_work_t *req)
 {
     auto baton = static_cast<OpenBaton *>(req->data);
 
-    baton->mainObject->eventIntervalTimer = new uv_timer_t();
-
-    baton->mainObject->asyncEvent = new uv_async_t();
-    baton->mainObject->asyncLog = new uv_async_t();
-    baton->mainObject->asyncStatus = new uv_async_t();
-
     baton->mainObject->initEventHandling(baton->event_callback, baton->evt_interval);
     baton->mainObject->initLogHandling(baton->log_callback);
     baton->mainObject->initStatusHandling(baton->status_callback);
@@ -692,17 +708,13 @@ void Adapter::Open(uv_work_t *req)
     auto serialization = sd_rpc_transport_layer_create(h5, baton->response_timeout);
     auto adapter = sd_rpc_adapter_create(serialization);
 
+    // Free memory malloc'ed by the sd_rpc_create* functions
+    free(uart);
+    free(h5);
+    free(serialization);
+
     baton->adapter = adapter;
     baton->mainObject->adapter = adapter;
-
-    // Clear the statistics
-    baton->mainObject->eventCallbackCount = 0;
-
-    // Max number of events in queue before sending it to JavaScript
-    baton->mainObject->eventCallbackMaxCount = 0;
-    baton->mainObject->eventCallbackBatchEventCounter = 0;
-    baton->mainObject->eventCallbackBatchEventTotalCount = 0;
-    baton->mainObject->eventCallbackBatchNumber = 0;
 
     // Set the log level
     auto error_code = sd_rpc_log_handler_severity_filter_set(adapter, baton->log_level);
@@ -723,12 +735,16 @@ void Adapter::Open(uv_work_t *req)
     {
         std::cerr << std::endl << "Failed to open the nRF5 BLE driver." << std::endl;
         baton->result = error_code;
+
+        // Delete the adapter layer and all layers below
+        sd_rpc_adapter_delete(adapter);
+        free(adapter);
+
         return;
     }
 
     if (baton->enable_ble) {
-        // Enable BLE with default values defined in Adapter:enableBLE private function
-        error_code = Adapter::enableBLE(adapter);
+        error_code = Adapter::enableBLE(adapter, baton->ble_enable_params);
 
         if (error_code == NRF_SUCCESS)
         {
@@ -817,6 +833,65 @@ void Adapter::AfterClose(uv_work_t *req)
         if (baton->result != NRF_SUCCESS)
         {
             argv[0] = ErrorMessage::getErrorMessage(baton->result, "closing connection");
+        }
+        else
+        {
+            argv[0] = Nan::Undefined();
+
+            sd_rpc_adapter_delete(baton->adapter);
+            free(baton->adapter);
+            baton->adapter = nullptr;
+        }
+
+        baton->callback->Call(1, argv);
+    }
+
+    delete baton;
+}
+
+NAN_METHOD(Adapter::ConnReset)
+{
+    auto obj = Nan::ObjectWrap::Unwrap<Adapter>(info.Holder());
+    v8::Local<v8::Function> callback;
+
+    try
+    {
+        callback = ConversionUtility::getCallbackFunction(info[0]);
+    }
+    catch (std::string error)
+    {
+        auto message = ErrorMessage::getTypeErrorMessage(0, error);
+        Nan::ThrowTypeError(message);
+        return;
+    }
+
+    auto baton = new ConnResetBaton(callback);
+    baton->adapter = obj->adapter;
+    baton->mainObject = obj;
+    /* Hardcoding the reset mode. Consider adding argument for letting user choose reset mode. */
+    baton->reset = SOFT_RESET;
+
+    uv_queue_work(uv_default_loop(), baton->req, ConnReset, reinterpret_cast<uv_after_work_cb>(AfterConnReset));
+}
+
+void Adapter::ConnReset(uv_work_t *req)
+{
+    auto baton = static_cast<ConnResetBaton *>(req->data);
+    baton->result = sd_rpc_conn_reset(baton->adapter, baton->reset);
+}
+
+void Adapter::AfterConnReset(uv_work_t *req)
+{
+    Nan::HandleScope scope;
+    auto baton = static_cast<ConnResetBaton *>(req->data);
+
+    if (baton->callback != nullptr)
+    {
+        v8::Local<v8::Value> argv[1];
+
+        if (baton->result != NRF_SUCCESS)
+        {
+            argv[0] = ErrorMessage::getErrorMessage(baton->result, "resetting connectivity device");
         }
         else
         {
@@ -1000,7 +1075,6 @@ void Adapter::AfterGetVersion(uv_work_t *req)
     }
 
     baton->callback->Call(2, argv);
-    delete baton->version;
     delete baton;
 }
 
@@ -1077,7 +1151,6 @@ void Adapter::AfterEncodeUUID(uv_work_t *req)
     }
 
     baton->callback->Call(4, argv);
-    delete baton->uuid_le;
     delete baton;
 }
 
@@ -1143,8 +1216,6 @@ void Adapter::AfterDecodeUUID(uv_work_t *req)
     }
 
     baton->callback->Call(2, argv);
-    delete baton->p_uuid;
-    delete baton->uuid_le;
     delete baton;
 }
 
@@ -1228,7 +1299,6 @@ void Adapter::AfterReplyUserMemory(uv_work_t *req)
     }
 
     baton->callback->Call(1, argv);
-    delete baton->p_block;
     delete baton;
 }
 
@@ -1381,7 +1451,6 @@ void Adapter::AfterGetBleOption(uv_work_t *req)
     }
 
     baton->callback->Call(2, argv);
-    delete baton->p_opt;
     delete baton;
 }
 

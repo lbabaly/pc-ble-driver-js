@@ -40,6 +40,7 @@
 #include <nan.h>
 #include <chrono>
 #include <map>
+#include <memory>
 
 #include "sd_rpc.h"
 
@@ -93,18 +94,18 @@ public:
 
     adapter_t *getInternalAdapter() const;
 
-    void initEventHandling(Nan::Callback *callback, const uint32_t interval);
+    void initEventHandling(std::unique_ptr<Nan::Callback> &callback, const uint32_t interval);
     void appendEvent(ble_evt_t *event);
 
     void onRpcEvent(uv_async_t *handle);
     void eventIntervalCallback(uv_timer_t *handle);
 
-    void initLogHandling(Nan::Callback *callback);
+    void initLogHandling(std::unique_ptr<Nan::Callback> &callback);
     void appendLog(LogEntry *log);
 
     void onLogEvent(uv_async_t *handle);
 
-    void initStatusHandling(Nan::Callback *callback);
+    void initStatusHandling(std::unique_ptr<Nan::Callback> &callback);
     void appendStatus(StatusEntry *log);
 
     void onStatusEvent(uv_async_t *handle);
@@ -133,6 +134,7 @@ private:
     // General async methods
     ADAPTER_METHOD_DEFINITIONS(Open);
     ADAPTER_METHOD_DEFINITIONS(Close);
+    ADAPTER_METHOD_DEFINITIONS(ConnReset);
     ADAPTER_METHOD_DEFINITIONS(EnableBLE);
     ADAPTER_METHOD_DEFINITIONS(GetVersion);
     ADAPTER_METHOD_DEFINITIONS(AddVendorSpecificUUID);
@@ -213,7 +215,7 @@ private:
     static void initGattS(v8::Local<v8::FunctionTemplate> tpl);
 
     void dispatchEvents();
-    static uint32_t enableBLE(adapter_t *adapter);
+    static uint32_t enableBLE(adapter_t *adapter, ble_enable_params_t *ble_enable_params);
 
     void createSecurityKeyStorage(const uint16_t connHandle, ble_gap_sec_keyset_t *keyset);
     void destroySecurityKeyStorage(const uint16_t connHandle);
@@ -226,9 +228,9 @@ private:
     LogQueue logQueue;
     StatusQueue statusQueue;
 
-    Nan::Callback *eventCallback;
-    Nan::Callback *logCallback;
-    Nan::Callback *statusCallback;
+    std::unique_ptr<Nan::Callback> eventCallback;
+    std::unique_ptr<Nan::Callback> logCallback;
+    std::unique_ptr<Nan::Callback> statusCallback;
 
     // Interval to use for sending BLE driver events to JavaScript. If 0 events will be sent as soon as they are received from the BLE driver.
     uint32_t eventInterval;

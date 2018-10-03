@@ -320,6 +320,27 @@ class Adapter extends EventEmitter {
         }
     }
 
+    _getDefaultEnableBLEParams() {
+        return {
+            gap_enable_params: {
+                periph_conn_count: 1,
+                central_conn_count: 7,
+                central_sec_count: 1,
+            },
+            gatts_enable_params: {
+                service_changed: false,
+                attr_tab_size: this._bleDriver.BLE_GATTS_ATTR_TAB_SIZE_DEFAULT,
+            },
+            common_enable_params: {
+                conn_bw_counts: null, // tell SD to use default
+                vs_uuid_count: 10,
+            },
+            gatt_enable_params: {
+                att_mtu: 247, // 247 is max att mtu size
+            },
+        };
+    }
+
     /**
      * @summary Initialize the adapter.
      *
@@ -335,14 +356,19 @@ class Adapter extends EventEmitter {
      * <li>{number} [eventInterval=0]: Interval to use for sending BLE driver events to JavaScript.
      *                                 If `0`, events will be sent as soon as they are received from the BLE driver.
      * <li>{string} [logLevel='info']: The verbosity of logging the developer wants with this adapter.
-     * <li>{number} [retransmissionInterval=100]: The time interval to wait between retransmitted packets.
-     * <li>{number} [responseTimeout=750]: Response timeout of the data link layer.
+     * <li>{number} [retransmissionInterval=250]: The time interval to wait between retransmitted packets.
+     * <li>{number} [responseTimeout=1500]: Response timeout of the data link layer.
      * <li>{boolean} [enableBLE=true]: Whether the BLE stack should be initialized and enabled.
      * </ul>
      * @param {function(Error)} [callback] Callback signature: err => {}.
      * @returns {void}
      */
     open(options, callback) {
+        if (this.state.opening || this.state.available) {
+            callback(_makeError('Adapter is already open.'));
+            return;
+        }
+
         if (this.notSupportedMessage !== undefined) {
             const error = new Error(this.notSupportedMessage);
 
@@ -363,8 +389,8 @@ class Adapter extends EventEmitter {
                 flowControl: 'none',
                 eventInterval: 0,
                 logLevel: 'info',
-                retransmissionInterval: 100,
-                responseTimeout: 750,
+                retransmissionInterval: 250,
+                responseTimeout: 1500,
                 enableBLE: true,
             };
         } else {
@@ -373,20 +399,26 @@ class Adapter extends EventEmitter {
             if (!options.flowControl) options.flowControl = 'none';
             if (!options.eventInterval) options.eventInterval = 0;
             if (!options.logLevel) options.logLevel = 'info';
-            if (!options.retransmissionInterval) options.retransmissionInterval = 100;
-            if (!options.responseTimeout) options.responseTimeout = 750;
+            if (!options.retransmissionInterval) options.retransmissionInterval = 250;
+            if (!options.responseTimeout) options.responseTimeout = 1500;
             if (options.enableBLE === undefined) options.enableBLE = true;
         }
 
-        this._changeState({ baudRate: options.baudRate, parity: options.parity, flowControl: options.flowControl });
+        this._changeState({
+            opening: true,
+            baudRate: options.baudRate,
+            parity: options.parity,
+            flowControl: options.flowControl,
+        });
 
         options.logCallback = this._logCallback.bind(this);
         options.eventCallback = this._eventCallback.bind(this);
         options.statusCallback = this._statusCallback.bind(this);
+        options.enableBLEParams = this._getDefaultEnableBLEParams();
 
         this._adapter.open(this._state.port, options, err => {
+            this._changeState({ opening: false });
             if (this._checkAndPropagateError(err, 'Error occurred opening serial port.', callback)) { return; }
-
             this._changeState({ available: true });
 
             /**
@@ -399,8 +431,9 @@ class Adapter extends EventEmitter {
             this.emit('opened', this);
 
             if (options.enableBLE) {
+                this._changeState({ bleEnabled: true });
                 this.getState(getStateError => {
-                    if (this._checkAndPropagateError(getStateError, 'Error retrieving adapter state.', callback)) { return; }
+                    this._checkAndPropagateError(getStateError, 'Error retrieving adapter state.', callback);
                 });
             }
 
@@ -412,21 +445,56 @@ class Adapter extends EventEmitter {
      * @summary Close the adapter.
      *
      * This function will close the serial port, release allocated resources and remove event listeners.
+     * Before closing, a reset command is issued to set the connectivity device to idle state.
      *
      * @param {function(Error)} [callback] Callback signature: err => {}.
      * @returns {void}
      */
     close(callback) {
-        this._changeState({ available: false });
-        this._adapter.close(error => {
-            /**
-             * Adapter closed event.
-             *
-             * @event Adapter#closed
-             * @type {Object}
-             * @property {Adapter} this - An instance of the closed <code>Adapter</code>.
-             */
-            this.emit('closed', this);
+        if (!this._state.available) {
+            if (callback) callback();
+            return;
+        }
+
+        this.connReset(err => {
+            if (err) {
+                this.emit('logMessage', logLevel.DEBUG, `Failed to issue connectivity reset: ${err.message}. Proceeding with close.`);
+            }
+
+            this._changeState({
+                available: false,
+                bleEnabled: false,
+            });
+
+            this._adapter.close(error => {
+                /**
+                 * Adapter closed event.
+                 *
+                 * @event Adapter#closed
+                 * @type {Object}
+                 * @property {Adapter} this - An instance of the closed <code>Adapter</code>.
+                 */
+                this.emit('closed', this);
+                if (callback) callback(error);
+            });
+        });
+    }
+
+    /**
+     * @summary Reset the connectivity device
+     *
+     * This function will issue a reset command to the connectivity device.
+     *
+     * @param {function(Error)} [callback] Callback signature: err => {}.
+     * @returns {void}
+     */
+    connReset(callback) {
+        if (!this.state.available) {
+            if (callback) callback(_makeError('The adapter is not available.'));
+            return;
+        }
+
+        this._adapter.connReset(error => {
             if (callback) callback(error);
         });
     }
@@ -487,31 +555,14 @@ class Adapter extends EventEmitter {
      */
     enableBLE(options, callback) {
         if (options === undefined || options === null) {
-            options = {
-                gap_enable_params: {
-                    periph_conn_count: 1,
-                    central_conn_count: 7,
-                    central_sec_count: 1,
-                },
-                gatts_enable_params: {
-                    service_changed: false,
-                    attr_tab_size: this._bleDriver.BLE_GATTS_ATTR_TAB_SIZE_DEFAULT,
-                },
-                common_enable_params: {
-                    conn_bw_counts: null, // tell SD to use default
-                    vs_uuid_count: 10,
-                },
-                gatt_enable_params: {
-                    att_mtu: 247, // 247 is max att mtu size
-                },
-            };
+            options = this._getDefaultEnableBLEParams();
         }
 
         this._adapter.enableBLE(
             options,
             (err, parameters, app_ram_base) => {
                 if (this._checkAndPropagateError(err, 'Enabling BLE failed.', callback)) { return; }
-
+                this._changeState({ bleEnabled: true });
                 if (callback) {
                     callback(err, parameters, app_ram_base);
                 }
@@ -525,6 +576,7 @@ class Adapter extends EventEmitter {
                 this._changeState(
                     {
                         available: false,
+                        bleEnabled: false,
                         connecting: false,
                         scanning: false,
                         advertising: false,
@@ -1053,9 +1105,9 @@ class Adapter extends EventEmitter {
                 break;
             case this._bleDriver.BLE_GAP_TIMEOUT_SRC_CONN:
                 const deviceAddress = this._gapOperationsMap.connecting.deviceAddress;
-                const callback = this._gapOperationsMap.connecting.callback;
-                const errorObject = _makeError('Could not connect. Connection procedure timed out.');
-                if (callback) callback(errorObject);
+                const errorObject = _makeError('Connect timed out.', deviceAddress);
+                const connectingCallback = this._gapOperationsMap.connecting.callback;
+                if (connectingCallback) connectingCallback(errorObject);
                 delete this._gapOperationsMap.connecting;
                 this._changeState({ connecting: false });
 
@@ -1082,7 +1134,7 @@ class Adapter extends EventEmitter {
                 this.emit('error', _makeError('Security request timed out.'));
                 break;
             default:
-                console.log(`GAP operation timed out: ${event.src_name} (${event.src}).`);
+                this.emit('logMessage', logLevel.DEBUG, `GAP operation timed out: ${event.src_name} (${event.src}).`);
         }
     }
 
@@ -1362,6 +1414,9 @@ class Adapter extends EventEmitter {
         const handle = event.handle;
         const data = event.data;
         const gattOperation = this._gattOperationsMap[device.instanceId];
+        if(!gattOperation) {
+            return;
+        }
 
         if (gattOperation && gattOperation.pendingHandleReads && !_.isEmpty(gattOperation.pendingHandleReads)) {
             const pendingHandleReads = gattOperation.pendingHandleReads;
@@ -1381,7 +1436,8 @@ class Adapter extends EventEmitter {
             };
 
             if (!attribute) {
-                console.log('something went wrong in bookkeeping of pending reads');
+                this.emit('logMessage', logLevel.DEBUG, `Unable to find attribute with handle ${event.handle} ` +
+                    'when parsing GATTC read response event.');
                 return;
             }
 
@@ -1390,8 +1446,13 @@ class Adapter extends EventEmitter {
             if (attribute instanceof Service) {
                 // TODO: Translate from uuid to name?
                 attribute.uuid = HexConv.arrayTo128BitUuid(data);
-                addVsUuidToDriver(attribute.uuid).then();
-                this.emit('serviceAdded', attribute);
+                addVsUuidToDriver(attribute.uuid)
+                .then(() => this.emit('serviceAdded', attribute))
+                .catch(err => {
+                    delete this._gattOperationsMap[device.instanceId];
+                    this.emit('error', _makeError('addVsUuidToDriver error', err));
+                    gattOperation.callback('Failed to add service uuid to driver');
+                });
 
                 if (_.isEmpty(pendingHandleReads)) {
                     const callbackServices = [];
@@ -1406,14 +1467,7 @@ class Adapter extends EventEmitter {
                 }
             } else if (attribute instanceof Characteristic) {
                 // TODO: Translate from uuid to name?
-                if (handle === attribute.declarationHandle) {
-                    attribute.uuid = HexConv.arrayTo128BitUuid(data.slice(3));
-                    addVsUuidToDriver(attribute.uuid).then();
-                } else if (handle === attribute.valueHandle) {
-                    attribute.value = data;
-                }
-
-                if (attribute.uuid && attribute.value) {
+                const emitCharacteristicAdded = () => {
                     /**
                      * Characteristic was successfully added to the <code>Adapter</code>'s GATT attribute table.
                      *
@@ -1421,7 +1475,23 @@ class Adapter extends EventEmitter {
                      * @type {Object}
                      * @property {Service} attribute - The new added characteristic.
                      */
-                    this.emit('characteristicAdded', attribute);
+                    if (attribute.uuid && attribute.value) {
+                        this.emit('characteristicAdded', attribute);
+                    }
+                };
+
+                if (handle === attribute.declarationHandle) {
+                    attribute.uuid = HexConv.arrayTo128BitUuid(data.slice(3));
+                    addVsUuidToDriver(attribute.uuid)
+                    .then(() => emitCharacteristicAdded())
+                    .catch(err => {
+                        delete this._gattOperationsMap[device.instanceId];
+                        this.emit('error', _makeError('addVsUuidToDriver error', err));
+                        gattOperation.callback('Failed to add characteristic uuid to driver');
+                    });
+                } else if (handle === attribute.valueHandle) {
+                    attribute.value = data;
+                    emitCharacteristicAdded();
                 }
 
                 if (_.isEmpty(pendingHandleReads)) {
@@ -1551,7 +1621,6 @@ class Adapter extends EventEmitter {
                 this._adapter.gattcWrite(device.connectionHandle, writeParameters, err => {
 
                     if (err) {
-                        console.log('some error');
                         this._longWriteCancel(device, gattOperation.attribute);
                         this.emit('error', _makeError('Failed to write value to device/handle ' + device.instanceId + '/' + handle, err));
                         return;
@@ -1997,6 +2066,7 @@ class Adapter extends EventEmitter {
 
                     changedStates.address = address;
                     changedStates.available = true;
+                    changedStates.bleEnabled = true;
 
                     this._changeState(changedStates);
                     if (callback) { callback(undefined, this._state); }
@@ -2575,24 +2645,24 @@ class Adapter extends EventEmitter {
         const device = this.getDevice(deviceInstanceId);
 
         if (!device) {
-            const errorObject = _makeError('Failed to request att mtu', 'Failed to find device with id ' + deviceInstanceId);
+            const errorObject = _makeError(`Failed to request att mtu. Failed to find device with id ${deviceInstanceId}`);
             if (callback) callback(errorObject);
             return;
         }
 
         if (this._gattOperationsMap[device.instanceId]) {
-            this.emit('error', _makeError('Failed to get services, a GATT operation already in progress'));
+            this.emit('error', _makeError('Failed to request att mtu. A GATT operation already in progress.'));
             return;
         }
 
         this._adapter.gattcExchangeMtuRequest(device.connectionHandle, mtu, err => {
             if (err) {
-                const errorObject = _makeError('Failed to request att mtu', err);
+                const errorObject = _makeError(`Failed to request att mtu: ${err.message}`);
                 if (callback) callback(errorObject);
                 return;
             }
 
-            this._gattOperationsMap[device.instanceId] = { callback: callback, clientRxMtu: mtu };
+            this._gattOperationsMap[device.instanceId] = { callback, clientRxMtu: mtu };
         });
     }
 
@@ -3700,44 +3770,64 @@ class Adapter extends EventEmitter {
             handle: attribute.handle,
             offset: 0,
             len: value.length,
-            value: value,
+            value,
         };
 
-        this._gattcWriteWithRetries(device.connectionHandle, writeParameters, err => {
-            if (err) {
+        Promise.resolve()
+            .then(() => {
+                if (ack) {
+                    return this._shortWriteWithResponse(device, writeParameters);
+                }
+                return this._shortWriteWithoutResponse(device, writeParameters)
+                    .then(() => {
+                        delete this._gattOperationsMap[device.instanceId];
+                        attribute.value = value;
+                        if (callback) { callback(undefined, attribute); }
+                    });
+            })
+            .catch(err => {
                 delete this._gattOperationsMap[device.instanceId];
-                this.emit('error', _makeError('Failed to write to attribute with handle: ' + attribute.handle, err));
-                if (callback) callback(err);
-                return;
-            }
+                const error = _makeError(`Failed to write to attribute with handle: ${attribute.handle}: ${err.message}`);
+                this.emit('error', error);
+                if (callback) callback(error);
+            });
+    }
 
-            if (!ack) {
-                delete this._gattOperationsMap[device.instanceId];
-                attribute.value = value;
-                if (callback) { callback(undefined, attribute); }
-            }
+    _shortWriteWithResponse(device, writeParameters) {
+        return new Promise((resolve, reject) => {
+            this._adapter.gattcWrite(device.connectionHandle, writeParameters, err => {
+                if (err) {
+                    reject(err);
+                } else {
+                    resolve();
+                }
+            });
         });
     }
 
-    _gattcWriteWithRetries(connectionHandle, writeParameters, callback) {
-        let attempts = 0;
-        const MAX_ATTEMPTS = 20;
-        const RETRY_DELAY = 5;
-        const BLE_ERROR_NO_TX_PACKETS = 0x3004;
-        const tryWrite = () => {
-            this._adapter.gattcWrite(connectionHandle, writeParameters, err => {
-                if (err) {
-                    if (err.errno === BLE_ERROR_NO_TX_PACKETS && attempts++ <= MAX_ATTEMPTS) {
-                        setTimeout(() => tryWrite(), RETRY_DELAY);
-                    } else {
-                        if (callback) callback(err);
+    _shortWriteWithoutResponse(device, writeParameters) {
+        let timeoutId;
+
+        return Promise.race([
+            new Promise((resolve, reject) => {
+                const txCompleteHandler = txCompleteDevice => {
+                    if (device.connectionHandle === txCompleteDevice.connectionHandle) {
+                        this.removeListener('txComplete', txCompleteHandler);
+                        clearTimeout(timeoutId);
+                        resolve();
                     }
-                } else {
-                    if (callback) callback();
-                }
-            });
-        };
-        tryWrite();
+                };
+                this.on('txComplete', txCompleteHandler);
+                this._adapter.gattcWrite(device.connectionHandle, writeParameters, err => {
+                    if (err) reject(err);
+                });
+            }),
+            new Promise((resolve, reject) => {
+                timeoutId = setTimeout(() => {
+                    reject(_makeError('Timed out while waiting for BLE_EVT_TX_COMPLETE'));
+                }, 2000);
+            }),
+        ]);
     }
 
     _longWrite(device, attribute, value, callback) {
@@ -3756,7 +3846,6 @@ class Adapter extends EventEmitter {
 
         this._adapter.gattcWrite(device.connectionHandle, writeParameters, err => {
             if (err) {
-                console.log(err);
                 this._longWriteCancel(device, attribute);
                 this.emit('error', _makeError('Failed to write value to device/handle ' + device.instanceId + '/' + attribute.handle, err));
                 return;

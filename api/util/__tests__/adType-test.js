@@ -34,30 +34,55 @@
  * THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-const Adapter = require('./api/adapter');
-const AdapterFactory = require('./api/adapterFactory');
-const AdapterState = require('./api/adapterState');
-const Characteristic = require('./api/characteristic');
-const Descriptor = require('./api/descriptor');
-const Device = require('./api/device');
-const Dfu = require('./api/dfu');
-const FirmwareRegistry = require('./api/firmwareRegistry');
-const FirmwareUpdater = require('./api/firmwareUpdater');
-const Security = require('./api/security');
-const Service = require('./api/service');
-const ServiceFactory = require('./api/serviceFactory');
+const AdType = require('../adType');
 
-module.exports = {
-    Adapter,
-    AdapterFactory,
-    AdapterState,
-    Characteristic,
-    Descriptor,
-    Device,
-    Dfu,
-    FirmwareRegistry,
-    FirmwareUpdater,
-    Security,
-    Service,
-    ServiceFactory,
-};
+describe('flags conversion', () => {
+    const AD_TYPE_FLAGS = 0x01;
+    const LENGTH = 0x02;
+
+    it('should throw error if unknown flag is given', () => {
+        expect(() => AdType.convertToBuffer({ flags: ['foobarFlag'] })).toThrow();
+    });
+
+    it('should convert leLimitedDiscMode', () => {
+        expect(AdType.convertToBuffer({
+            flags: ['leLimitedDiscMode'],
+        })).toEqual(new Buffer([LENGTH, AD_TYPE_FLAGS, 0x01]));
+    });
+
+    it('should convert leGeneralDiscMode', () => {
+        expect(AdType.convertToBuffer({
+            flags: ['leGeneralDiscMode'],
+        })).toEqual(new Buffer([LENGTH, AD_TYPE_FLAGS, 0x02]));
+    });
+
+    it('should convert brEdrNotSupported', () => {
+        expect(AdType.convertToBuffer({
+            flags: ['brEdrNotSupported'],
+        })).toEqual(new Buffer([LENGTH, AD_TYPE_FLAGS, 0x04]));
+    });
+
+    it('should convert leBrEdrController', () => {
+        expect(AdType.convertToBuffer({
+            flags: ['leBrEdrController'],
+        })).toEqual(new Buffer([LENGTH, AD_TYPE_FLAGS, 0x08]));
+    });
+
+    it('should convert leBrEdrHost', () => {
+        expect(AdType.convertToBuffer({
+            flags: ['leBrEdrHost'],
+        })).toEqual(new Buffer([LENGTH, AD_TYPE_FLAGS, 0x10]));
+    });
+
+    it('should convert leLimitedDiscMode, brEdrNotSupported', () => {
+        expect(AdType.convertToBuffer({
+            flags: ['leLimitedDiscMode', 'brEdrNotSupported'],
+        })).toEqual(new Buffer([LENGTH, AD_TYPE_FLAGS, 0x05]));
+    });
+
+    it('should convert leGeneralDiscMode, brEdrNotSupported', () => {
+        expect(AdType.convertToBuffer({
+            flags: ['leGeneralDiscMode', 'brEdrNotSupported'],
+        })).toEqual(new Buffer([LENGTH, AD_TYPE_FLAGS, 0x06]));
+    });
+});

@@ -119,12 +119,13 @@ extern "C" {
     }
 }
 
-void Adapter::initEventHandling(Nan::Callback *callback, uint32_t interval)
+void Adapter::initEventHandling(std::unique_ptr<Nan::Callback> &callback, uint32_t interval)
 {
     eventInterval = interval;
+    asyncEvent = new uv_async_t();
 
     // Setup event related functionality
-    eventCallback = callback;
+    eventCallback = std::move(callback);
     asyncEvent->data = static_cast<void *>(this);
 
     if (uv_async_init(uv_default_loop(), asyncEvent, event_handler) != 0)
@@ -132,6 +133,15 @@ void Adapter::initEventHandling(Nan::Callback *callback, uint32_t interval)
         std::cerr << "Not able to create a new async event handler." << std::endl;
         std::terminate();
     }
+
+    // Clear the statistics
+    eventCallbackCount = 0;
+
+    // Max number of events in queue before sending it to JavaScript
+    eventCallbackMaxCount = 0;
+    eventCallbackBatchEventCounter = 0;
+    eventCallbackBatchEventTotalCount = 0;
+    eventCallbackBatchNumber = 0;
 
     if (eventInterval == 0)
     {
@@ -176,17 +186,12 @@ extern "C" {
     }
 }
 
-void Adapter::initLogHandling(Nan::Callback *callback)
+void Adapter::initLogHandling(std::unique_ptr<Nan::Callback> &callback)
 {
     // Setup event related functionality
-    logCallback = callback;
+    asyncLog = new uv_async_t();
+    logCallback = std::move(callback);
     asyncLog->data = static_cast<void *>(this);
-
-    if (asyncLog == nullptr)
-    {
-        std::cerr << "asyncLog is null, terminating." << std::endl;
-        std::terminate();
-    }
 
     if (uv_async_init(uv_default_loop(), asyncLog, log_handler) != 0)
     {
@@ -212,10 +217,11 @@ extern "C" {
     }
 }
 
-void Adapter::initStatusHandling(Nan::Callback *callback)
+void Adapter::initStatusHandling(std::unique_ptr<Nan::Callback> &callback)
 {
     // Setup event related functionality
-    statusCallback = callback;
+    asyncStatus = new uv_async_t();
+    statusCallback = std::move(callback);
     asyncStatus->data = static_cast<void *>(this);
 
     if (uv_async_init(uv_default_loop(), asyncStatus, status_handler) != 0)
@@ -233,8 +239,9 @@ void Adapter::cleanUpV8Resources()
     {
         auto handle = reinterpret_cast<uv_handle_t *>(asyncStatus);
         uv_close(handle, [](uv_handle_t *handle) {
-            free(handle);
+            delete handle;
         });
+        this->statusCallback.reset();
 
         asyncStatus = nullptr;
     }
@@ -250,7 +257,7 @@ void Adapter::cleanUpV8Resources()
         auto handle = reinterpret_cast<uv_handle_t *>(eventIntervalTimer);
         uv_close(handle, [](uv_handle_t *handle)
         {
-            free(handle);
+            delete handle;
         });
 
         eventIntervalTimer = nullptr;
@@ -262,8 +269,9 @@ void Adapter::cleanUpV8Resources()
 
         uv_close(handle, [](uv_handle_t *handle)
         {
-            free(handle);
+            delete handle;
         });
+        this->eventCallback.reset();
 
         asyncEvent = nullptr;
     }
@@ -273,8 +281,9 @@ void Adapter::cleanUpV8Resources()
         auto logHandle = reinterpret_cast<uv_handle_t *>(asyncLog);
         uv_close(logHandle, [](uv_handle_t *handle)
         {
-            free(handle);
+            delete handle;
         });
+        this->logCallback.reset();
 
         asyncLog = nullptr;
     }
@@ -286,6 +295,7 @@ void Adapter::initGeneric(v8::Local<v8::FunctionTemplate> tpl)
 {
     Nan::SetPrototypeMethod(tpl, "open", Open);
     Nan::SetPrototypeMethod(tpl, "close", Close);
+    Nan::SetPrototypeMethod(tpl, "connReset", ConnReset);
     Nan::SetPrototypeMethod(tpl, "getVersion", GetVersion);
     Nan::SetPrototypeMethod(tpl, "enableBLE", EnableBLE);
     Nan::SetPrototypeMethod(tpl, "addVendorspecificUUID", AddVendorSpecificUUID);
