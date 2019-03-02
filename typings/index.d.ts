@@ -83,16 +83,16 @@ export declare interface AuthParameters {
 }
 
 export declare interface AuthStatus {
-  auth_status: number,
-  auth_status_name: string,
-  error_src: number,
-  error_src_name: string,
-  bonded: boolean,
-  sm1_levels: number,
-  sm2_levels: number,
-  kdist_own: any, // FIXME:
-  kdist_peer: any, // FIXME:
-  keyset: any, // FIXME:
+  auth_status: number;
+  auth_status_name: string;
+  error_src: number;
+  error_src_name: string;
+  bonded: boolean;
+  sm1_levels: number;
+  sm2_levels: number;
+  kdist_own: any; // FIXME:
+  kdist_peer: any; // FIXME:
+  keyset: any; // FIXME:
 }
 
 export declare interface ConnectionOptions {
@@ -114,6 +114,7 @@ export declare interface AdapterState {
   addressType: string;
   name: string;
   available: boolean;
+  bleEnabled: boolean;
   scanning: boolean;
   advertising: boolean;
   connecting: boolean;
@@ -158,7 +159,7 @@ export declare interface CharacteristicProperties {
   write: boolean;
   notify: boolean;
   indicate: boolean;
-  auth_signed_wr: boolean
+  auth_signed_wr: boolean;
 }
 
 export declare interface CharacteristicExtProperties extends CharacteristicProperties {
