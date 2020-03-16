@@ -55,6 +55,33 @@ const auto STATUS_QUEUE_SIZE = 64;
     static void MainName(uv_work_t *req); \
     static void After##MainName(uv_work_t *req);
 
+struct enable_ble_params_t {
+#if NRF_SD_BLE_API_VERSION < 5
+    ble_enable_params_t ble_enable_params; // If enable BLE is true, then use these params when enabling BLE
+#else
+    ~enable_ble_params_t() {
+        if (gap_conn_cfg) delete gap_conn_cfg;
+        if (gatt_conn_cfg) delete gatt_conn_cfg;
+        if (gatts_conn_cfg) delete gatts_conn_cfg;
+        if (gattc_conn_cfg) delete gattc_conn_cfg;
+        if (l2cap_conn_cfg) delete l2cap_conn_cfg;
+        if (common_cfg) delete common_cfg;
+        if (gap_cfg) delete gap_cfg;
+        if (gatts_cfg_service_changed) delete gatts_cfg_service_changed;
+        if (gatts_cfg_attr_tab_size) delete gatts_cfg_attr_tab_size;
+    }
+    ble_cfg_t *gap_conn_cfg;     /**< BLE GAP specific connection configuration. */
+    ble_cfg_t *gatt_conn_cfg;    /**< BLE GATT specific connection configuration. */
+    ble_cfg_t *gatts_conn_cfg;   /**< BLE GATTS specific connection configuration. */
+    ble_cfg_t *gattc_conn_cfg;   /**< BLE GATTC specific connection configuration. */
+    ble_cfg_t *l2cap_conn_cfg;   /**< BLE L2CAP specific connection configuration. */
+    ble_cfg_t *common_cfg; /**< Global common configurations, cfg_id in @ref BLE_COMMON_CFGS series. */
+    ble_cfg_t *gap_cfg;    /**< Global GAP configurations, cfg_id in @ref BLE_GAP_CFGS series. */
+    ble_cfg_t *gatts_cfg_service_changed;  /**< Global GATTS configuration, cfg_id in @ref BLE_GATTS_CFGS series. */
+    ble_cfg_t *gatts_cfg_attr_tab_size;    /**< Global GATTS configuration, cfg_id in @ref BLE_GATTS_CFGS series. */
+#endif
+};
+
 struct LogEntry
 {
 public:
@@ -144,6 +171,10 @@ private:
     ADAPTER_METHOD_DEFINITIONS(SetBleOption);
     ADAPTER_METHOD_DEFINITIONS(GetBleOption);
 
+#if NRF_SD_BLE_API_VERSION >= 5
+    ADAPTER_METHOD_DEFINITIONS(SetBleConfig);
+#endif
+
     // General sync methods
     static NAN_METHOD(GetStats);
 
@@ -181,6 +212,10 @@ private:
     ADAPTER_METHOD_DEFINITIONS(GapGetLESCOOBData);
 
     ADAPTER_METHOD_DEFINITIONS(GapSetLESCOOBData);
+#if NRF_SD_BLE_API_VERSION >= 5
+    ADAPTER_METHOD_DEFINITIONS(GapDataLengthUpdate);
+    ADAPTER_METHOD_DEFINITIONS(GapPhyUpdate);
+#endif
 
     // Gattc async mehtods
     ADAPTER_METHOD_DEFINITIONS(GattcDiscoverPrimaryServices);
@@ -192,7 +227,7 @@ private:
     ADAPTER_METHOD_DEFINITIONS(GattcReadCharacteristicValues);
     ADAPTER_METHOD_DEFINITIONS(GattcWrite);
     ADAPTER_METHOD_DEFINITIONS(GattcConfirmHandleValue);
-#if NRF_SD_BLE_API_VERSION >= 3
+#if NRF_SD_BLE_API_VERSION >= 5
     ADAPTER_METHOD_DEFINITIONS(GattcExchangeMtuRequest);
 #endif
 
@@ -205,7 +240,7 @@ private:
     ADAPTER_METHOD_DEFINITIONS(GattsSetValue);
     ADAPTER_METHOD_DEFINITIONS(GattsGetValue);
     ADAPTER_METHOD_DEFINITIONS(GattsReplyReadWriteAuthorize);
-#if NRF_SD_BLE_API_VERSION >= 3
+#if NRF_SD_BLE_API_VERSION >= 5
     ADAPTER_METHOD_DEFINITIONS(GattsExchangeMtuReply);
 #endif
 
@@ -215,7 +250,8 @@ private:
     static void initGattS(v8::Local<v8::FunctionTemplate> tpl);
 
     void dispatchEvents();
-    static uint32_t enableBLE(adapter_t *adapter, ble_enable_params_t *ble_enable_params);
+
+    static uint32_t enableBLE(adapter_t *adapter, enable_ble_params_t *enable_params);
 
     void createSecurityKeyStorage(const uint16_t connHandle, ble_gap_sec_keyset_t *keyset);
     void destroySecurityKeyStorage(const uint16_t connHandle);

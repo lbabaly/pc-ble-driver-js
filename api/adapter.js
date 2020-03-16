@@ -323,22 +323,68 @@ class Adapter extends EventEmitter {
     }
 
     _getDefaultEnableBLEParams() {
+        if (this._bleDriver.NRF_SD_BLE_API_VERSION === 2) {
+            return {
+                gap_enable_params: {
+                    periph_conn_count: 1,
+                    central_conn_count: 7,
+                    central_sec_count: 1,
+                },
+                gatts_enable_params: {
+                    service_changed: false,
+                    attr_tab_size: this._bleDriver.BLE_GATTS_ATTR_TAB_SIZE_DEFAULT,
+                },
+                common_enable_params: {
+                    conn_bw_counts: null, // tell SD to use default
+                    vs_uuid_count: 10,
+                },
+                gatt_enable_params: {
+                    att_mtu: MAX_SUPPORTED_ATT_MTU,
+                },
+            };
+        }
         return {
-            gap_enable_params: {
-                periph_conn_count: 1,
-                central_conn_count: 7,
-                central_sec_count: 1,
+            conn_cfg: {
+                gap_conn_cfg: {
+                    conn_count: 8,
+                    // event_length,
+                },
+                gatt_conn_cfg: {
+                    att_mtu: MAX_SUPPORTED_ATT_MTU,
+                },
+                // gattc_conn_cfg: {
+                //     write_cmd_tx_queue_size,
+                // },
+                // gatts_conn_cfg: {
+                //     hvn_tx_queue_size,
+                // },
+                // l2cap_conn_cfg: {
+                //     rx_mps,
+                //     tx_mps,
+                //     rx_queue_size,
+                //     tx_queue_size,
+                //     ch_count,
+                // },
             },
-            gatts_enable_params: {
-                service_changed: false,
-                attr_tab_size: this._bleDriver.BLE_GATTS_ATTR_TAB_SIZE_DEFAULT,
+            common_cfg: {
+                vs_uuid_cfg: {
+                    vs_uuid_count: 10,
+                },
             },
-            common_enable_params: {
-                conn_bw_counts: null, // tell SD to use default
-                vs_uuid_count: 10,
+            gap_cfg: {
+                role_count_cfg: {
+                    periph_role_count: 1,
+                    central_role_count: 7,
+                    central_sec_count: 1,
+                },
             },
-            gatt_enable_params: {
-                att_mtu: MAX_SUPPORTED_ATT_MTU,
+            gatts_cfg: {
+                service_changed: {
+                    service_changed: false,
+                },
+                attr_tab_size: {
+                    attr_tab_size: this._bleDriver.BLE_GATTS_ATTR_TAB_SIZE_DEFAULT,
+                },
             },
         };
     }
@@ -416,7 +462,7 @@ class Adapter extends EventEmitter {
         options.logCallback = this._logCallback.bind(this);
         options.eventCallback = this._eventCallback.bind(this);
         options.statusCallback = this._statusCallback.bind(this);
-        options.enableBLEParams = this._getDefaultEnableBLEParams();
+        options.enableBLEParams = options.enableBLEParams || this._getDefaultEnableBLEParams();
 
         this._adapter.open(this._state.port, options, err => {
             this._changeState({ opening: false });
@@ -548,11 +594,7 @@ class Adapter extends EventEmitter {
      *                                      Otherwise @ref GATT_MTU_SIZE_DEFAULT is the minimum value.
      *                </ul>
      * </ul>
-     * @param {function(Error, Object, number)} [callback] Callback signature: (err, parameters, app_ram_base) => {}
-     *                                                   where `parameters` is the BLE initialization parameters as
-     *                                                   described above and `app_ram_base` is the minimum start address
-     *                                                   of the application RAM region required by the SoftDevice for
-     *                                                   this configuration.
+     * @param {function(Error)} [callback] Callback signature: (err) => {}
      * @returns {void}
      */
     enableBLE(options, callback) {
@@ -562,13 +604,72 @@ class Adapter extends EventEmitter {
 
         this._adapter.enableBLE(
             options,
-            (err, parameters, app_ram_base) => {
+            err => {
                 if (this._checkAndPropagateError(err, 'Enabling BLE failed.', callback)) { return; }
                 this._changeState({ bleEnabled: true });
                 if (callback) {
-                    callback(err, parameters, app_ram_base);
+                    callback();
                 }
             });
+    }
+
+    setBleConfig(ble_cfg, callback) {
+        const { conn_cfg, common_cfg, gap_cfg, gatts_cfg } = ble_cfg;
+
+        (async () => {
+            const setOneCfg = (configId, cfg) => new Promise((resolve, reject) => {
+                this._adapter.setBleConfig(this._bleDriver[configId], cfg, err => (
+                    this._checkAndPropagateError(err, `Set BLE config ${configId} failed.`, reject) || resolve()
+                ));
+            });
+
+            if (conn_cfg !== undefined) {
+                const { gap_conn_cfg, gattc_conn_cfg, gatts_conn_cfg, gatt_conn_cfg, l2cap_conn_cfg } = conn_cfg;
+
+                if (gap_conn_cfg !== undefined) {
+                    await setOneCfg('BLE_CONN_CFG_GAP', { conn_cfg: { gap_conn_cfg } });
+                }
+                if (gattc_conn_cfg !== undefined) {
+                    await setOneCfg('BLE_CONN_CFG_GATTC', { conn_cfg: { gattc_conn_cfg } });
+                }
+                if (gatts_conn_cfg !== undefined) {
+                    await setOneCfg('BLE_CONN_CFG_GATTS', { conn_cfg: { gatts_conn_cfg } });
+                }
+                if (gatt_conn_cfg !== undefined) {
+                    await setOneCfg('BLE_CONN_CFG_GATT', { conn_cfg: { gatt_conn_cfg } });
+                }
+                if (l2cap_conn_cfg !== undefined) {
+                    await setOneCfg('BLE_CONN_CFG_L2CAP', { conn_cfg: { l2cap_conn_cfg } });
+                }
+            }
+            if (common_cfg !== undefined) {
+                const { vs_uuid_cfg } = common_cfg;
+
+                if (vs_uuid_cfg) {
+                    await setOneCfg('BLE_COMMON_CFG_VS_UUID', { common_cfg: { vs_uuid_cfg } });
+                }
+            }
+            if (gap_cfg !== undefined) {
+                const { role_count_cfg, device_name } = gap_cfg;
+
+                if (role_count_cfg !== undefined) {
+                    await setOneCfg('BLE_GAP_CFG_ROLE_COUNT', { gap_cfg: { role_count_cfg } });
+                }
+                if (device_name !== undefined) {
+                    await setOneCfg('BLE_GAP_CFG_DEVICE_NAME', { gap_cfg: { device_name } });
+                }
+            }
+            if (gatts_cfg !== undefined) {
+                const { service_changed, attr_tab_size } = gatts_cfg;
+
+                if (service_changed !== undefined) {
+                    await setOneCfg('BLE_GATTS_CFG_SERVICE_CHANGED', { gatts_cfg: { service_changed } });
+                }
+                if (attr_tab_size !== undefined) {
+                    await setOneCfg('BLE_GATTS_CFG_ATTR_TAB_SIZE', { gatts_cfg: { attr_tab_size } });
+                }
+            }
+        })().then(callback);
     }
 
     _statusCallback(status) {
@@ -674,6 +775,18 @@ class Adapter extends EventEmitter {
                 case this._bleDriver.BLE_GAP_EVT_SCAN_REQ_REPORT:
                     // Not needed. Received when a scan request is received.
                     break;
+                case this._bleDriver.BLE_GAP_EVT_DATA_LENGTH_UPDATE_REQUEST:
+                    this._parseGapDataLengthUpdateRequestEvent(event);
+                    break;
+                case this._bleDriver.BLE_GAP_EVT_DATA_LENGTH_UPDATE:
+                    this._parseGapDataLengthUpdateEvent(event);
+                    break;
+                case this._bleDriver.BLE_GAP_EVT_PHY_UPDATE_REQUEST:
+                    this._parseGapPhyUpdateRequestEvent(event);
+                    break;
+                case this._bleDriver.BLE_GAP_EVT_PHY_UPDATE:
+                    this._parseGapPhyUpdateEvent(event);
+                    break;
                 case this._bleDriver.BLE_GATTC_EVT_PRIM_SRVC_DISC_RSP:
                     this._parseGattcPrimaryServiceDiscoveryResponseEvent(event);
                     break;
@@ -732,10 +845,9 @@ class Adapter extends EventEmitter {
                     this._parseMemoryRequestEvent(event);
                     break;
                 case this._bleDriver.BLE_EVT_TX_COMPLETE:
+                case this._bleDriver.BLE_GATTC_EVT_WRITE_CMD_TX_COMPLETE:
+                case this._bleDriver.BLE_GATTS_HVN_TX_COMPLETE:
                     this._parseTxCompleteEvent(event);
-                    break;
-                case this._bleDriver.BLE_EVT_DATA_LENGTH_CHANGED:
-                    this._parseDataLengthChangedEvent(event);
                     break;
                 default:
                     this.emit('logMessage', logLevel.INFO, `Unsupported event received from SoftDevice: ${event.id} - ${event.name}`);
@@ -769,7 +881,7 @@ class Adapter extends EventEmitter {
         device.connected = true;
         this._devices[device.instanceId] = device;
 
-        this._attMtuMap[device.instanceId] = this.driver.GATT_MTU_SIZE_DEFAULT;
+        this._attMtuMap[device.instanceId] = this.driver.GATT_MTU_SIZE_DEFAULT || this.driver.BLE_GATT_ATT_MTU_DEFAULT;
 
         this._changeState({ connecting: false });
 
@@ -1062,6 +1174,80 @@ class Adapter extends EventEmitter {
          * @property {Object} connectionParameters - GAP Connection Parameters.
          */
         this.emit('connParamUpdateRequest', device, connectionParameters);
+    }
+
+    _parseGapDataLengthUpdateRequestEvent(event) {
+        const device = this._getDeviceByConnectionHandle(event.conn_handle);
+
+        /**
+         * DataLength Update Request.
+         *
+         * @event Adapter#dataLengthUpdateRequest
+         * @type {Object}
+         * @property {Device} device - The <code>Device</code> instance representing the BLE peer we're connected to.
+         * @property {Object} event - DataLength Update Request Event Parameters.
+         */
+
+        this._adapter.gapDataLengthUpdate(event.conn_handle, {
+            max_rx_octets: Math.min(event.peer_params.max_tx_octets),
+            max_tx_octets: Math.min(event.peer_params.max_rx_octets),
+        }, error => {
+            if (error) {
+                this.emit('error', _makeError('Failed to call dataLengthUpdate', error));
+                return;
+            }
+        });
+    }
+
+    _parseGapDataLengthUpdateEvent(event) {
+        const device = this._getDeviceByConnectionHandle(event.conn_handle);
+
+        /**
+         * DataLength Update.
+         *
+         * @event Adapter#phyUpdateRequest
+         * @type {Object}
+         * @property {Device} device - The <code>Device</code> instance representing the BLE peer we're connected to.
+         * @property {Object} event - DataLength Update Event Parameters.
+         */
+        this.emit('dataLengthUpdated', device, event);
+    }
+
+    _parseGapPhyUpdateRequestEvent(event) {
+        const device = this._getDeviceByConnectionHandle(event.conn_handle);
+
+        /**
+         * PHY Update Request.
+         *
+         * @event Adapter#phyUpdateRequest
+         * @type {Object}
+         * @property {Device} device - The <code>Device</code> instance representing the BLE peer we're connected to.
+         * @property {Object} event - PHY Update Request Event Parameters.
+         */
+
+        this._adapter.gapPhyUpdate(event.conn_handle, {
+            tx_phys: event.peer_preferred_phys.rx_phys,
+            rx_phys: event.peer_preferred_phys.tx_phys,
+        }, error => {
+            if (error) {
+                this.emit('error', _makeError('Failed to call phyUpdate', error));
+                return;
+            }
+        });
+    }
+
+    _parseGapPhyUpdateEvent(event) {
+        const device = this._getDeviceByConnectionHandle(event.conn_handle);
+
+        /**
+         * PHY Update.
+         *
+         * @event Adapter#phyUpdate
+         * @type {Object}
+         * @property {Device} device - The <code>Device</code> instance representing the BLE peer we're connected to.
+         * @property {Object} event - PHY Update Event Parameters.
+         */
+        this.emit('phyUpdated', device, event);
     }
 
     _parseGapAdvertismentReportEvent(event) {
@@ -1953,8 +2139,7 @@ class Adapter extends EventEmitter {
         const remoteDevice = this._getDeviceByConnectionHandle(event.conn_handle);
 
         /* Make sure the requested mtu does not exceed the max supported size */
-        const newMtu = (event.client_rx_mtu >= MAX_SUPPORTED_ATT_MTU) ? MAX_SUPPORTED_ATT_MTU
-            : event.client_rx_mtu;
+        const newMtu = Math.min(event.client_rx_mtu, MAX_SUPPORTED_ATT_MTU);
 
         this._adapter.gattsExchangeMtuReply(event.conn_handle, newMtu, error => {
             if (error) {
@@ -1991,20 +2176,6 @@ class Adapter extends EventEmitter {
          * @property {number} event.count - Number of packets transmitted.
          */
         this.emit('txComplete', remoteDevice, event.count);
-    }
-
-    _parseDataLengthChangedEvent(event) {
-        const remoteDevice = this._getDeviceByConnectionHandle(event.conn_handle);
-        /**
-         * Link layer PDU length changed.
-         *
-         * @event Adapter#dataLengthChanged
-         * @type {Object}
-         * @property {Device} remoteDevice - The <code>Device</code> instance representing the BLE peer we've connected to.
-         * @property {number} event.max_tx_octets - The maximum number of payload octets in a Link Layer Data Channel
-         *                                          PDU that the local Controller will send. Range: 27-251
-         */
-        this.emit('dataLengthChanged', remoteDevice, event.max_tx_octets);
     }
 
     _setAttributeValueWithOffset(attribute, value, offset) {
@@ -4097,6 +4268,40 @@ class Adapter extends EventEmitter {
             }
 
             if (callback) { callback(err); }
+        });
+    }
+
+    phyUpdate(deviceInstanceId, phys, callback) {
+        const device = this.getDevice(deviceInstanceId);
+        if (!device) {
+            throw new Error('No device with instance id: ' + deviceInstanceId);
+        }
+
+        this._adapter.gapPhyUpdate(device.connectionHandle, phys, err => {
+            if (err) {
+                const errorObject = _makeError('Failed to update phys', err);
+                this.emit('error', errorObject);
+                if (callback) { callback(errorObject); }
+                return;
+            }
+            if (callback) { callback(); }
+        });
+    }
+
+    dataLengthUpdate(deviceInstanceId, params, callback) {
+        const device = this.getDevice(deviceInstanceId);
+        if (!device) {
+            throw new Error('No device with instance id: ' + deviceInstanceId);
+        }
+
+        this._adapter.gapDataLengthUpdate(device.connectionHandle, params, err => {
+            if (err) {
+                const errorObject = _makeError('Failed to update data length', err);
+                this.emit('error', errorObject);
+                if (callback) { callback(errorObject); }
+                return;
+            }
+            if (callback) { callback(); }
         });
     }
 }
